@@ -1,0 +1,7 @@
+{
+  "recommendations": [
+    "ziglang.vscode-zig",
+    "jnoortheen.nix-ide",
+    "esbenp.prettier-vscode"
+  ]
+}

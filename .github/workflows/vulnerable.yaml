@@ -1,0 +1,33 @@
+name: vulnerable
+
+on:
+  schedule:
+    - cron: "0 9 * * 0" # every Sunday at 09:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  flake:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: spotdemo4/nix-init@5fe5a93e1ff2a6a4cfba1ae7d3f30d0dfed9d1a9 # v1.34.1
+        with:
+          shell: vulnerable
+
+      - name: Run flake-checker
+        run: flake-checker -f
+
+  actions:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: spotdemo4/nix-init@5fe5a93e1ff2a6a4cfba1ae7d3f30d0dfed9d1a9 # v1.34.1
+        with:
+          shell: vulnerable
+
+      - name: Run octoscan
+        run: find .github/workflows -exec octoscan scan {} \;
