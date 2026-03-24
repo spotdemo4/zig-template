@@ -36,9 +36,6 @@
               zls
               lldb
 
-              # linters
-              octoscan
-
               # formatters
               nixfmt
               prettier
@@ -95,8 +92,8 @@
               octoscan
             ];
             forEach = ''
-              action-validator $file
-              octoscan scan $file
+              action-validator "$file"
+              octoscan scan "$file"
             '';
           };
 
