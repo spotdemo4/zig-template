@@ -22,23 +22,12 @@
 
   outputs =
     {
-      nixpkgs,
+      self,
       trev,
       ...
     }:
     trev.libs.mkFlake (
-      system:
-      let
-        pkgs = import nixpkgs {
-          inherit system;
-          overlays = [
-            trev.overlays.packages
-            trev.overlays.libs
-          ];
-        };
-        fs = pkgs.lib.fileset;
-      in
-      rec {
+      system: pkgs: {
         devShells = {
           default = pkgs.mkShell {
             shellHook = pkgs.shellhook.ref;
@@ -90,9 +79,9 @@
           };
         };
 
-        checks = pkgs.lib.mkChecks {
+        checks = pkgs.mkChecks {
           zig = {
-            src = packages.default;
+            src = self.packages.${system}.default;
             script = ''
               zig build test
             '';
@@ -145,18 +134,18 @@
           };
         };
 
-        packages = with pkgs.lib; rec {
+        packages = pkgs.mkPackages pkgs (pkgs: {
           default = pkgs.stdenv.mkDerivation (finalAttrs: {
             pname = "zig-template";
             version = "0.0.1";
 
-            src = fs.toSource {
+            src = pkgs.lib.fileset.toSource {
               root = ./.;
-              fileset = fs.unions [
+              fileset = pkgs.lib.fileset.unions [
                 ./build.zig
                 ./build.zig.zon
-                ./src
                 ./LICENSE
+                ./src
               ];
             };
 
@@ -167,38 +156,23 @@
             meta = {
               description = "zig template";
               mainProgram = "zig_template";
+              license = pkgs.lib.licenses.mit;
+              platforms = pkgs.lib.platforms.all;
               homepage = "https://github.com/spotdemo4/zig-template";
               changelog = "https://github.com/spotdemo4/zig-template/releases/tag/v${finalAttrs.version}";
-              license = licenses.mit;
-              platforms = platforms.all;
+              downloadPage = "https://github.com/spotdemo4/zig-template/releases/tag/v${finalAttrs.version}";
             };
           });
+        });
 
-          image = pkgs.dockerTools.buildLayeredImage {
-            name = default.pname;
-            tag = default.version;
-
-            contents = with pkgs; [
-              dockerTools.caCertificates
-            ];
-
-            created = "now";
-            meta = default.meta;
-
-            config = {
-              Cmd = [ "${meta.getExe default}" ];
-              Labels = {
-                "org.opencontainers.image.title" = default.pname;
-                "org.opencontainers.image.description" = default.meta.description;
-                "org.opencontainers.image.version" = default.version;
-                "org.opencontainers.image.source" = default.meta.homepage;
-                "org.opencontainers.image.licenses" = default.meta.license.spdxId;
-              };
-            };
+        images = pkgs.mkImages pkgs (pkgs: {
+          default = pkgs.mkImage self.packages.${system}.default {
+            contents = with pkgs; [ dockerTools.caCertificates ];
           };
-        };
+        });
 
         formatter = pkgs.nixfmt-tree;
+        schemas = trev.schemas;
       }
     );
 }
