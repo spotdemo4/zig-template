@@ -67,11 +67,8 @@
 
           vulnerable = pkgs.mkShell {
             packages = with pkgs; [
-              # flake
-              flake-checker
-
-              # actions
-              octoscan
+              flake-checker # flake
+              octoscan # actions
             ];
           };
         };
@@ -168,8 +165,8 @@
           };
         });
 
-        formatter = pkgs.nixfmt-tree;
         schemas = trev.schemas;
+        formatter = pkgs.nixfmt-tree;
       }
     );
 }
