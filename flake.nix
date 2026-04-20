@@ -36,14 +36,13 @@
               zls
               lldb
 
-              # formatters
+              # format
               nixfmt
               prettier
 
               # util
               bumper
               flake-release
-              renovate
             ];
           };
 
@@ -83,8 +82,8 @@
 
           actions = {
             root = ./.;
-            fileset = ./.github/workflows;
-            deps = with pkgs; [
+            files = ./.github/workflows;
+            packages = with pkgs; [
               action-validator
               octoscan
             ];
@@ -96,8 +95,8 @@
 
           renovate = {
             root = ./.github;
-            fileset = ./.github/renovate.json;
-            deps = with pkgs; [
+            files = ./.github/renovate.json;
+            packages = with pkgs; [
               renovate
             ];
             script = ''
@@ -108,7 +107,7 @@
           nix = {
             root = ./.;
             filter = file: file.hasExt "nix";
-            deps = with pkgs; [
+            packages = with pkgs; [
               nixfmt
             ];
             forEach = ''
@@ -119,7 +118,7 @@
           prettier = {
             root = ./.;
             filter = file: file.hasExt "yaml" || file.hasExt "json" || file.hasExt "md";
-            deps = with pkgs; [
+            packages = with pkgs; [
               prettier
             ];
             forEach = ''
@@ -128,14 +127,23 @@
           };
         };
 
-        packages = pkgs.mkPackages pkgs (pkgs: {
-          default = pkgs.stdenv.mkDerivation (finalAttrs: {
+        formatter = pkgs.treefmt.withConfig {
+          configFile = ./treefmt.toml;
+          runtimeInputs = with pkgs; [
+            zig
+            nixfmt
+            prettier
+          ];
+        };
+
+        packages.default = pkgs.stdenv.mkDerivation (
+          final: with pkgs.lib; {
             pname = "zig-template";
             version = "0.0.1";
 
-            src = pkgs.lib.fileset.toSource {
+            src = fileset.toSource {
               root = ./.;
-              fileset = pkgs.lib.fileset.unions [
+              fileset = fileset.unions [
                 ./build.zig
                 ./build.zig.zon
                 ./LICENSE
@@ -148,25 +156,22 @@
             ];
 
             meta = {
-              description = "zig template";
               mainProgram = "zig_template";
-              license = pkgs.lib.licenses.mit;
-              platforms = pkgs.lib.platforms.all;
+              description = "zig template";
+              license = licenses.mit;
+              platforms = platforms.all;
               homepage = "https://github.com/spotdemo4/zig-template";
-              changelog = "https://github.com/spotdemo4/zig-template/releases/tag/v${finalAttrs.version}";
-              downloadPage = "https://github.com/spotdemo4/zig-template/releases/tag/v${finalAttrs.version}";
+              changelog = "https://github.com/spotdemo4/zig-template/releases/tag/v${final.version}";
+              downloadPage = "https://github.com/spotdemo4/zig-template/releases/tag/v${final.version}";
             };
-          });
-        });
+          }
+        );
 
-        images = pkgs.mkImages pkgs (pkgs: {
-          default = pkgs.mkImage self.packages.${system}.default {
-            contents = with pkgs; [ dockerTools.caCertificates ];
-          };
-        });
+        images.default = pkgs.mkImage {
+          src = self.packages.${system}.default;
+        };
 
         schemas = trev.schemas;
-        formatter = pkgs.nixfmt-tree;
       }
     );
 }
