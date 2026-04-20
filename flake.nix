@@ -67,7 +67,7 @@
           vulnerable = pkgs.mkShell {
             packages = with pkgs; [
               flake-checker # flake
-              octoscan # actions
+              zizmor # actions
             ];
           };
         };
@@ -85,11 +85,11 @@
             files = ./.github/workflows;
             packages = with pkgs; [
               action-validator
-              octoscan
+              zizmor
             ];
             forEach = ''
               action-validator "$file"
-              octoscan scan "$file"
+              zizmor --offline "$file"
             '';
           };
 

@@ -9,13 +9,15 @@ concurrency:
   group: release
 
 permissions:
-  contents: write
-  id-token: write
-  packages: write
+  contents: read
 
 jobs:
   linux:
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: write
+      packages: write
     steps:
       - name: Initialize
         uses: spotdemo4/nix-init@757d5ba1fa0749e877484703bece0e17c7bd5670 # v1.43.0
@@ -43,6 +45,9 @@ jobs:
 
   darwin:
     runs-on: macos-latest
+    permissions:
+      id-token: write
+      contents: write
     steps:
       - name: Initialize
         uses: spotdemo4/nix-init@757d5ba1fa0749e877484703bece0e17c7bd5670 # v1.43.0
