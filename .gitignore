@@ -2,10 +2,10 @@
 /.envrc
 /docker-compose*
 
-# zig
-/zig-out/
-/.zig-cache/
-
 # nix
 /result*
 /.direnv/
+
+# zig
+/zig-out/
+/.zig-cache/

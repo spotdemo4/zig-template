@@ -47,7 +47,7 @@ nix build
 ### release
 
 ```elm
-bumper "action.yaml" ".github/README.md"
+bumper "README.md"
 ```
 
 releases are created automatically for [significant](https://www.conventionalcommits.org/en/v1.0.0/#summary) changes
@@ -75,10 +75,4 @@ docker run ghcr.io/spotdemo4/zig-template:0.0.2
 
 ```elm
 nix run github:spotdemo4/zig-template
-```
-
-### action
-
-```yaml
-- uses: spotdemo4/zig-template@v0.0.2
 ```

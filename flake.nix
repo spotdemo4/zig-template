@@ -11,7 +11,7 @@
   };
 
   inputs = {
-    systems.url = "github:nix-systems/default";
+    systems.url = "github:spotdemo4/systems";
     nixpkgs.url = "github:nixos/nixpkgs/nixpkgs-unstable";
     trev = {
       url = "github:spotdemo4/nur";
@@ -28,21 +28,27 @@
     }:
     trev.libs.mkFlake (
       system: pkgs: {
+
+        # nix develop [#...]
         devShells = {
           default = pkgs.mkShell {
             shellHook = pkgs.shellhook.ref;
             packages = with pkgs; [
+              # zig
               zig
               zls
               lldb
 
+              # lint
+              nixd
+
               # format
-              nixfmt
+              treefmt
               prettier
+              nixfmt
 
               # util
               bumper
-              flake-release
             ];
           };
 
@@ -66,23 +72,96 @@
 
           vulnerable = pkgs.mkShell {
             packages = with pkgs; [
-              flake-checker # flake
+              flake-checker # nix
               zizmor # actions
             ];
           };
         };
 
-        checks = pkgs.mkChecks {
-          zig = {
+        # nix run [#...]
+        apps = pkgs.mkApps {
+          default = "zig run src/main.zig";
+        };
+
+        # nix build [#...]
+        packages = {
+          default = pkgs.stdenv.mkDerivation (
+            final: with pkgs.lib; {
+              pname = "zig-template";
+              version = "0.0.2";
+
+              src = fileset.toSource {
+                root = ./.;
+                fileset = fileset.unions [
+                  ./build.zig
+                  ./build.zig.zon
+                  ./LICENSE
+                  ./README.md
+                  ./src
+                ];
+              };
+
+              nativeBuildInputs = with pkgs; [
+                zig.hook
+              ];
+
+              meta = {
+                mainProgram = "zig_template";
+                description = "zig template";
+                license = licenses.mit;
+                platforms = platforms.all;
+                homepage = "https://github.com/spotdemo4/zig-template";
+                changelog = "https://github.com/spotdemo4/zig-template/releases/tag/v${final.version}";
+                downloadPage = "https://github.com/spotdemo4/zig-template/releases/tag/v${final.version}";
+              };
+            }
+          );
+        };
+
+        # nix build #images.[...]
+        images = {
+          default = pkgs.mkImage {
             src = self.packages.${system}.default;
-            script = ''
-              zig build test
+          };
+        };
+
+        # nix fmt
+        formatter = pkgs.treefmt.withConfig {
+          configFile = ./treefmt.toml;
+          runtimeInputs = with pkgs; [
+            prettier
+            nixfmt
+            zig
+          ];
+        };
+
+        # nix flake check
+        checks = pkgs.mkChecks {
+          prettier = {
+            root = ./.;
+            filter = file: file.hasExt "yaml" || file.hasExt "json" || file.hasExt "md";
+            packages = with pkgs; [
+              prettier
+            ];
+            forEach = ''
+              prettier --check "$file"
+            '';
+          };
+
+          nix = {
+            root = ./.;
+            filter = file: file.hasExt "nix";
+            packages = with pkgs; [
+              nixfmt
+            ];
+            forEach = ''
+              nixfmt --check "$file"
             '';
           };
 
           actions = {
-            root = ./.;
-            files = ./.github/workflows;
+            root = ./.github/workflows;
+            filter = file: file.hasExt "yaml";
             packages = with pkgs; [
               action-validator
               zizmor
@@ -104,74 +183,14 @@
             '';
           };
 
-          nix = {
-            root = ./.;
-            filter = file: file.hasExt "nix";
-            packages = with pkgs; [
-              nixfmt
-            ];
-            forEach = ''
-              nixfmt --check "$file"
-            '';
-          };
-
-          prettier = {
-            root = ./.;
-            filter = file: file.hasExt "yaml" || file.hasExt "json" || file.hasExt "md";
-            packages = with pkgs; [
-              prettier
-            ];
-            forEach = ''
-              prettier --check "$file"
+          zig = {
+            src = self.packages.${system}.default;
+            script = ''
+              zig fmt --check src
+              zig build test
             '';
           };
         };
-
-        formatter = pkgs.treefmt.withConfig {
-          configFile = ./treefmt.toml;
-          runtimeInputs = with pkgs; [
-            zig
-            nixfmt
-            prettier
-          ];
-        };
-
-        packages.default = pkgs.stdenv.mkDerivation (
-          final: with pkgs.lib; {
-            pname = "zig-template";
-            version = "0.0.2";
-
-            src = fileset.toSource {
-              root = ./.;
-              fileset = fileset.unions [
-                ./build.zig
-                ./build.zig.zon
-                ./LICENSE
-                ./src
-              ];
-            };
-
-            nativeBuildInputs = with pkgs; [
-              zig.hook
-            ];
-
-            meta = {
-              mainProgram = "zig_template";
-              description = "zig template";
-              license = licenses.mit;
-              platforms = platforms.all;
-              homepage = "https://github.com/spotdemo4/zig-template";
-              changelog = "https://github.com/spotdemo4/zig-template/releases/tag/v${final.version}";
-              downloadPage = "https://github.com/spotdemo4/zig-template/releases/tag/v${final.version}";
-            };
-          }
-        );
-
-        images.default = pkgs.mkImage {
-          src = self.packages.${system}.default;
-        };
-
-        schemas = trev.schemas;
       }
     );
 }

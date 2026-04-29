@@ -1,10 +1,15 @@
 const std = @import("std");
 const zig_template = @import("zig_template");
+const Init = std.process.Init;
+const Io = std.Io;
 
-pub fn main() !void {
+pub fn main(init: Init) !void {
     // Prints to stderr, ignoring potential errors.
     std.debug.print("All your {s} are belong to us.\n", .{"codebase"});
-    try zig_template.bufferedPrint();
+
+    // Prints to stdout, propagating potential errors.
+    var stdout = Io.File.stdout().writer(init.io, &.{});
+    try stdout.interface.writeAll("Run `zig build test` to run the tests.\n");
 }
 
 test "simple test" {
@@ -17,9 +22,13 @@ test "simple test" {
 
 test "fuzz example" {
     const Context = struct {
-        fn testOne(context: @This(), input: []const u8) anyerror!void {
+        fn testOne(context: @This(), smith: *std.testing.Smith) anyerror!void {
             _ = context;
-            // Try passing `--fuzz` to `zig build test` and see if it manages to fail this test case!
+
+            var buf: [64]u8 = undefined;
+            const len: usize = @intCast(smith.slice(&buf));
+            const input = buf[0..len];
+
             try std.testing.expect(!std.mem.eql(u8, "canyoufindme", input));
         }
     };

@@ -1,4 +1,5 @@
 {
+  "editor.defaultFormatter": "esbenp.prettier-vscode",
   "editor.formatOnSave": true,
   "files.associations": {
     "renovate.json": "jsonc",
@@ -9,15 +10,27 @@
   // nix
   "nix.enableLanguageServer": true,
   "nix.serverPath": "nixd",
+  "nix.serverSettings": {
+    "nixd": {
+      "nixpkgs": {
+        "expr": "(builtins.getFlake (builtins.toString ./.)).outputs.nixpkgs.${builtins.currentSystem}"
+      }
+    }
+  },
   "[nix]": {
     "editor.defaultFormatter": "jnoortheen.nix-ide"
   },
 
-  // actions
-  "editor.defaultFormatter": "esbenp.prettier-vscode",
-
   // json
   "json.schemaDownload.trustedDomains": {
     "https://docs.renovatebot.com/": true
+  },
+
+  // zig
+  "zig.zls.enabled": "on",
+  "zig.path": "zig",
+  "zig.zls.path": "zls",
+  "[zig]": {
+    "editor.defaultFormatter": "ziglang.vscode-zig"
   }
 }
