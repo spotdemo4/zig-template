@@ -13,7 +13,7 @@ permissions:
 
 jobs:
   linux:
-    runs-on: ubuntu-latest
+    runs-on: builder # could not build on ubuntu-latest due to llvm
     permissions:
       id-token: write
       contents: write
