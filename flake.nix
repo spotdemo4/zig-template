@@ -96,7 +96,6 @@
                   ./build.zig
                   ./build.zig.zon
                   ./LICENSE
-                  ./README.md
                   ./src
                 ];
               };
