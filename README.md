@@ -57,17 +57,17 @@ releases are created automatically for [significant](https://www.conventionalcom
 
 | OS      | Architecture | Download                                                                                                                                        |
 | ------- | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| Linux   | amd64        | [zig-template_0.0.2_linux_amd64](https://github.com/spotdemo4/zig-template/releases/download/v0.0.2/zig-template_0.0.2_linux_amd64)             |
-| Linux   | arm64        | [zig-template_0.0.2_linux_arm64](https://github.com/spotdemo4/zig-template/releases/download/v0.0.2/zig-template_0.0.2_linux_arm64)             |
-| Linux   | arm          | [zig-template_0.0.2_linux_arm](https://github.com/spotdemo4/zig-template/releases/download/v0.0.2/zig-template_0.0.2_linux_arm)                 |
-| MacOS   | amd64        | [zig-template_0.0.2_darwin_amd64](https://github.com/spotdemo4/zig-template/releases/download/v0.0.2/zig-template_0.0.2_darwin_amd64)           |
-| MacOS   | arm64        | [zig-template_0.0.2_darwin_arm64](https://github.com/spotdemo4/zig-template/releases/download/v0.0.2/zig-template_0.0.2_darwin_arm64)           |
-| Windows | amd64        | [zig-template_0.0.2_windows_amd64.exe](https://github.com/spotdemo4/zig-template/releases/download/v0.0.2/zig-template_0.0.2_windows_amd64.exe) |
+| Linux   | amd64        | [zig-template_0.1.0_linux_amd64](https://github.com/spotdemo4/zig-template/releases/download/v0.1.0/zig-template_0.1.0_linux_amd64)             |
+| Linux   | arm64        | [zig-template_0.1.0_linux_arm64](https://github.com/spotdemo4/zig-template/releases/download/v0.1.0/zig-template_0.1.0_linux_arm64)             |
+| Linux   | arm          | [zig-template_0.1.0_linux_arm](https://github.com/spotdemo4/zig-template/releases/download/v0.1.0/zig-template_0.1.0_linux_arm)                 |
+| MacOS   | amd64        | [zig-template_0.1.0_darwin_amd64](https://github.com/spotdemo4/zig-template/releases/download/v0.1.0/zig-template_0.1.0_darwin_amd64)           |
+| MacOS   | arm64        | [zig-template_0.1.0_darwin_arm64](https://github.com/spotdemo4/zig-template/releases/download/v0.1.0/zig-template_0.1.0_darwin_arm64)           |
+| Windows | amd64        | [zig-template_0.1.0_windows_amd64.exe](https://github.com/spotdemo4/zig-template/releases/download/v0.1.0/zig-template_0.1.0_windows_amd64.exe) |
 
 ### docker
 
 ```elm
-docker run ghcr.io/spotdemo4/zig-template:0.0.2
+docker run ghcr.io/spotdemo4/zig-template:0.1.0
 ```
 
 ### nix
