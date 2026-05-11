@@ -57,14 +57,14 @@ releases are created automatically for [significant](https://www.conventionalcom
 
 | OS    | Architecture | Download                                                                                                                              |
 | ----- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------- |
-| Linux | amd64        | [zig-template_0.2.0_linux_amd64](https://github.com/spotdemo4/zig-template/releases/download/v0.2.0/zig-template_0.2.0_linux_amd64)   |
-| Linux | arm64        | [zig-template_0.2.0_linux_arm64](https://github.com/spotdemo4/zig-template/releases/download/v0.2.0/zig-template_0.2.0_linux_arm64)   |
-| MacOS | arm64        | [zig-template_0.2.0_darwin_arm64](https://github.com/spotdemo4/zig-template/releases/download/v0.2.0/zig-template_0.2.0_darwin_arm64) |
+| Linux | amd64        | [zig-template_0.2.1_linux_amd64](https://github.com/spotdemo4/zig-template/releases/download/v0.2.1/zig-template_0.2.1_linux_amd64)   |
+| Linux | arm64        | [zig-template_0.2.1_linux_arm64](https://github.com/spotdemo4/zig-template/releases/download/v0.2.1/zig-template_0.2.1_linux_arm64)   |
+| MacOS | arm64        | [zig-template_0.2.1_darwin_arm64](https://github.com/spotdemo4/zig-template/releases/download/v0.2.1/zig-template_0.2.1_darwin_arm64) |
 
 ### docker
 
 ```elm
-docker run ghcr.io/spotdemo4/zig-template:0.2.0
+docker run ghcr.io/spotdemo4/zig-template:0.2.1
 ```
 
 ### nix
