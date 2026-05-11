@@ -5,7 +5,7 @@
 [![zig](<https://img.shields.io/badge/dynamic/regex?url=https%3A%2F%2Fraw.githubusercontent.com%2Fspotdemo4%2Fzig-template%2Frefs%2Fheads%2Fmain%2Fbuild.zig.zon&search=.minimum_zig_version%20%3D%20%22(.*)%22&replace=%241&logo=zig&logoColor=%23bac2de&label=version&labelColor=%23313244&color=%23F7A41D>)](https://ziglang.org/)
 [![flakehub](https://img.shields.io/endpoint?url=https://flakehub.com/f/spotdemo4/zig-template/badge&labelColor=%23313244)](https://flakehub.com/flake/spotdemo4/zig-template)
 
-template for [zig](https://ziglang.org/)
+template for [Zig](https://ziglang.org/)
 
 part of [spotdemo4/templates](https://github.com/spotdemo4/templates)
 
@@ -22,7 +22,7 @@ nix develop
 ### run
 
 ```elm
-nix run
+nix run #dev
 ```
 
 ### format

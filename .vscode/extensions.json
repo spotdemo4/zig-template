@@ -1,7 +1,8 @@
 {
   "recommendations": [
-    "esbenp.prettier-vscode",
+    "ziglang.vscode-zig",
     "jnoortheen.nix-ide",
-    "ziglang.vscode-zig"
+    "oxc.oxc-vscode",
+    "tombi-toml.tombi"
   ]
 }
