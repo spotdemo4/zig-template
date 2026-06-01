@@ -2,7 +2,7 @@
 
 [![check](https://trev.zip/template/zig/actions/workflows/check.yaml/badge.svg?branch=main&logo=forgejo&logoColor=%23bac2de&label=check&labelColor=%23313244)](https://trev.zip/template/zig/actions?workflow=check.yaml)
 [![vulnerable](https://trev.zip/template/zig/actions/workflows/vulnerable.yaml/badge.svg?branch=main&logo=forgejo&logoColor=%23bac2de&label=vulnerable&labelColor=%23313244)](https://trev.zip/template/zig/actions?workflow=vulnerable.yaml)
-[![zig](<https://img.shields.io/badge/dynamic/regex?url=https%3A%2F%2Fraw.githubusercontent.com%2Fspotdemo4%2Fzig-template%2Frefs%2Fheads%2Fmain%2Fbuild.zig.zon&search=.minimum_zig_version%20%3D%20%22(.*)%22&replace=%241&logo=zig&logoColor=%23bac2de&label=version&labelColor=%23313244&color=%23F7A41D>)](https://ziglang.org/)
+[![zig](<https://img.shields.io/badge/dynamic/regex?url=https://trev.zip/template/zig/raw/branch/main/build.zig.zon&search=.minimum_zig_version%20%3D%20%22(.*)%22&replace=%241&logo=zig&logoColor=%23bac2de&label=version&labelColor=%23313244&color=%23F7A41D>)](https://ziglang.org/)
 
 template for [zig](https://ziglang.org/)
 
