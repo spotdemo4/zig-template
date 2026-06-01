@@ -34,11 +34,6 @@ jobs:
             packages.x86_64-linux.default
             images.x86_64-linux.default
 
-      - name: Release to FlakeHub
-        uses: DeterminateSystems/flakehub-push@71f57208810a5d299fc6545350981de98fdbc860 # v6
-        with:
-          visibility: public
-
   linux-arm64:
     name: linux arm64
     runs-on: ubuntu-24.04-arm

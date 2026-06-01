@@ -1,7 +1,11 @@
 /.env
 /.envrc
 /docker-compose*
-/.claude/
+
+# agents
+.agents/
+.claude/
+.codex/
 
 # nix
 /result*
