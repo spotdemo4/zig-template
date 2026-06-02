@@ -1,8 +1,8 @@
 name: update
 
 on:
-  schedule:
-    - cron: "0 9 * * *" # every day at 09:00 UTC
+  # schedule:
+  #   - cron: "0 9 * * *" # every day at 09:00 UTC
   workflow_dispatch:
 
 permissions:
