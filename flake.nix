@@ -111,7 +111,16 @@
                     "-"
                     "-windows-gnu"
                   ]
-                  pkgs.stdenv.hostPlatform.config;
+                  (
+                    replaceStrings
+                      [
+                        "armv7l-"
+                      ]
+                      [
+                        "arm-"
+                      ]
+                      pkgs.stdenv.hostPlatform.config
+                  );
               zigTargetFlags = optionals (pkgs.stdenv.hostPlatform.config != pkgs.stdenv.buildPlatform.config) [
                 "-Dtarget=${final.zigTarget}"
               ];
