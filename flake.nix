@@ -101,13 +101,58 @@
                 ];
               };
 
+              zigTarget =
+                replaceStrings
+                  [
+                    "-unknown-"
+                    "-w64-mingw32"
+                  ]
+                  [
+                    "-"
+                    "-windows-gnu"
+                  ]
+                  pkgs.stdenv.hostPlatform.config;
+              zigTargetFlags = optionals (pkgs.stdenv.hostPlatform.config != pkgs.stdenv.buildPlatform.config) [
+                "-Dtarget=${final.zigTarget}"
+              ];
+              zigBuildFlags = final.zigTargetFlags ++ [
+                "-Doptimize=ReleaseSafe"
+              ];
+              canRunTarget = pkgs.stdenv.buildPlatform.canExecute pkgs.stdenv.hostPlatform;
+
               nativeBuildInputs = with pkgs; [
-                zig.hook
+                buildPackages.zig
               ];
 
+              dontConfigure = true;
+              doCheck = true;
+
+              zigCacheSetup = ''
+                export ZIG_GLOBAL_CACHE_DIR="$TMPDIR/zig-global-cache"
+                export ZIG_LOCAL_CACHE_DIR="$TMPDIR/zig-local-cache"
+              '';
+              preBuild = final.zigCacheSetup;
+              preCheck = final.zigCacheSetup;
+
+              buildPhase = ''
+                runHook preBuild
+                zig build --prefix zig-out ${escapeShellArgs final.zigBuildFlags}
+                runHook postBuild
+              '';
+
               checkPhase = ''
+                runHook preCheck
                 zig fmt --check src
-                zig build test
+                ${optionalString final.canRunTarget ''
+                  zig build test ${escapeShellArgs final.zigBuildFlags}
+                ''}
+                runHook postCheck
+              '';
+
+              installPhase = ''
+                runHook preInstall
+                cp -R zig-out "$out"
+                runHook postInstall
               '';
 
               meta = {
