@@ -231,9 +231,11 @@
             root = ./.forgejo/workflows;
             filter = file: file.hasExt "yaml";
             packages = with pkgs; [
+              forgejo-runner
               zizmor
             ];
             script = ''
+              forgejo-runner validate --workflow --path "$file"
               zizmor --offline "$file"
             '';
           };
