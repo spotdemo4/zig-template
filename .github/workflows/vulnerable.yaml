@@ -20,7 +20,7 @@ jobs:
           shell: vulnerable
 
       - name: Run zizmor
-        run: zizmor .github
+        run: zizmor $(find .github/workflows -name "*.yaml")
 
   nix:
     runs-on: ubuntu-24.04
