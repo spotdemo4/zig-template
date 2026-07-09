@@ -12,6 +12,26 @@ permissions:
   contents: read
 
 jobs:
+  darwin-arm64:
+    name: darwin arm64
+    runs-on: macos-26
+    permissions:
+      id-token: write
+      contents: write
+    steps:
+      - name: Initialize
+        uses: spotdemo4/nix-init@1443d93dfa3ca2f043b37f848631d6ac5563b0ec # v1.56.0
+        with:
+          fetch_depth: 0
+          shell: release
+
+      - name: Release to GitHub
+        run: flake-release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PACKAGES: |
+            packages.aarch64-darwin.default
+
   linux-amd64:
     name: linux amd64
     runs-on: ubuntu-24.04
@@ -55,23 +75,3 @@ jobs:
           PACKAGES: |
             packages.aarch64-linux.default
             images.aarch64-linux.default
-
-  darwin-arm64:
-    name: darwin arm64
-    runs-on: macos-26
-    permissions:
-      id-token: write
-      contents: write
-    steps:
-      - name: Initialize
-        uses: spotdemo4/nix-init@1443d93dfa3ca2f043b37f848631d6ac5563b0ec # v1.56.0
-        with:
-          fetch_depth: 0
-          shell: release
-
-      - name: Release to GitHub
-        run: flake-release
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PACKAGES: |
-            packages.aarch64-darwin.default

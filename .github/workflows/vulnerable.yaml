@@ -9,19 +9,6 @@ permissions:
   contents: read
 
 jobs:
-  nix:
-    runs-on: ubuntu-24.04
-    permissions:
-      id-token: write
-    steps:
-      - name: Initialize
-        uses: spotdemo4/nix-init@1443d93dfa3ca2f043b37f848631d6ac5563b0ec # v1.56.0
-        with:
-          shell: vulnerable
-
-      - name: Run flake-checker
-        run: flake-checker -f
-
   actions:
     runs-on: ubuntu-24.04
     permissions:
@@ -34,3 +21,16 @@ jobs:
 
       - name: Run zizmor
         run: zizmor .github
+
+  nix:
+    runs-on: ubuntu-24.04
+    permissions:
+      id-token: write
+    steps:
+      - name: Initialize
+        uses: spotdemo4/nix-init@1443d93dfa3ca2f043b37f848631d6ac5563b0ec # v1.56.0
+        with:
+          shell: vulnerable
+
+      - name: Run flake-checker
+        run: flake-checker -f
