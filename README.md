@@ -16,6 +16,7 @@ part of [spotdemo4/templates](https://github.com/spotdemo4/templates)
 
 ```sh
 nix develop
+./init.sh "Title" "Description"
 ```
 
 ### run
