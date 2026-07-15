@@ -81,7 +81,12 @@
 
         # nix run [#...]
         apps = pkgs.mkApps {
-          dev = "zig run src/main.zig";
+          dev = {
+            script = "zig run src/main.zig";
+            packages = with pkgs; [
+              zig
+            ];
+          };
         };
 
         # nix build [#...]
