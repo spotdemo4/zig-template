@@ -3,6 +3,7 @@
     "ziglang.vscode-zig",
     "jnoortheen.nix-ide",
     "oxc.oxc-vscode",
+    "redhat.vscode-yaml",
     "tombi-toml.tombi"
   ]
 }
