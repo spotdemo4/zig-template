@@ -81,16 +81,6 @@
           };
         };
 
-        # nix run [#...]
-        apps = pkgs.mkApps {
-          dev = {
-            script = "zig run src/main.zig";
-            packages = with pkgs; [
-              zig
-            ];
-          };
-        };
-
         # nix build [#...]
         packages = {
           default = pkgs.stdenv.mkDerivation (
