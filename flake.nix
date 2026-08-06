@@ -147,7 +147,6 @@
 
               checkPhase = ''
                 runHook preCheck
-                zig fmt --check src
                 ${optionalString final.canRunTarget ''
                   zig build test ${escapeShellArgs final.zigBuildFlags}
                 ''}
@@ -196,6 +195,17 @@
             dontBuild = true;
             installPhase = ''
               touch $out
+            '';
+          };
+
+          zigfmt = {
+            root = ./.;
+            filter = file: file.hasExt "zig";
+            packages = with pkgs; [
+              zig
+            ];
+            script = ''
+              zig fmt --check "$file"
             '';
           };
 
