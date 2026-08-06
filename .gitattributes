@@ -1,0 +1,26 @@
+# Zig template - Git attributes
+# https://git-scm.com/docs/gitattributes
+
+# Linguist: lock file is generated
+flake.lock linguist-generated=true
+
+# Zig source files
+*.zig text diff=zig linguist-language=Zig
+*.zon text diff=zig linguist-language=Zig
+build.zig text diff=zig
+
+# Normalize line endings to LF and auto-detect text files
+* text=auto eol=lf
+
+# Shell scripts must use LF
+*.sh text eol=lf
+*.bash text eol=lf
+
+# Windows batch files require CRLF
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+# Do not normalize patch/diff files
+*.diff -text
+*.patch -text
