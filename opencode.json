@@ -10,14 +10,16 @@
       "extensions": [".json", ".jsonc"]
     },
     "yaml-ls": {
-      "command": ["yaml-language-server", "--stdio"]
+      "command": ["yaml-language-server", "--stdio"],
+      "extensions": [".yaml"]
     },
     "tombi": {
       "command": ["tombi", "lsp"],
       "extensions": [".toml"]
     },
     "nixd": {
-      "command": ["nixd"]
+      "command": ["nixd"],
+      "extensions": [".nix"]
     }
   }
 }

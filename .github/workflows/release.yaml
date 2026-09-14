@@ -12,28 +12,7 @@ permissions:
   contents: read
 
 jobs:
-  darwin-arm64:
-    name: darwin arm64
-    runs-on: macos-26
-    permissions:
-      id-token: write
-      contents: write
-    steps:
-      - name: Initialize
-        uses: spotdemo4/nix-init@c7537bc73ce11ca01e53bd9d119d6e46363f9888 # v1.65.0
-        with:
-          fetch_depth: 0
-          shell: release
-
-      - name: Release to GitHub
-        run: flake-release
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PACKAGES: |
-            packages.aarch64-darwin.default
-
-  linux-amd64:
-    name: linux amd64
+  release:
     runs-on: ubuntu-24.04
     permissions:
       id-token: write
@@ -51,27 +30,11 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PACKAGES: |
-            packages.x86_64-linux.default
-            images.x86_64-linux.default
-
-  linux-arm64:
-    name: linux arm64
-    runs-on: ubuntu-24.04-arm
-    permissions:
-      id-token: write
-      contents: write
-      packages: write
-    steps:
-      - name: Initialize
-        uses: spotdemo4/nix-init@c7537bc73ce11ca01e53bd9d119d6e46363f9888 # v1.65.0
-        with:
-          fetch_depth: 0
-          shell: release
-
-      - name: Release to GitHub
-        run: flake-release
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PACKAGES: |
-            packages.aarch64-linux.default
-            images.aarch64-linux.default
+            packages.x86_64-linux.default.x86_64-unknown-linux-musl
+            packages.x86_64-linux.default.aarch64-unknown-linux-musl
+            packages.x86_64-linux.default.armv7l-unknown-linux-musleabihf
+            packages.x86_64-linux.default.x86_64-w64-mingw32
+            packages.x86_64-linux.default.arm64-apple-darwin
+            images.x86_64-linux.default.x86_64-unknown-linux-musl
+            images.x86_64-linux.default.aarch64-unknown-linux-musl
+            images.x86_64-linux.default.armv7l-unknown-linux-musleabihf

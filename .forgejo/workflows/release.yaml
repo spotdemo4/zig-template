@@ -9,7 +9,7 @@ on:
 enable-openid-connect: true
 
 jobs:
-  linux:
+  release:
     # zizmor: ignore[excessive-permissions]
     runs-on: ubuntu-24.04
     steps:
@@ -34,6 +34,7 @@ jobs:
             packages.x86_64-linux.default.aarch64-unknown-linux-musl
             packages.x86_64-linux.default.armv7l-unknown-linux-musleabihf
             packages.x86_64-linux.default.x86_64-w64-mingw32
+            packages.x86_64-linux.default.arm64-apple-darwin
             images.x86_64-linux.default.x86_64-unknown-linux-musl
             images.x86_64-linux.default.aarch64-unknown-linux-musl
             images.x86_64-linux.default.armv7l-unknown-linux-musleabihf

@@ -4,12 +4,8 @@ const Init = std.process.Init;
 const Io = std.Io;
 
 pub fn main(init: Init) !void {
-    // Prints to stderr, ignoring potential errors.
-    std.debug.print("All your {s} are belong to us.\n", .{"codebase"});
-
-    // Prints to stdout, propagating potential errors.
     var stdout = Io.File.stdout().writer(init.io, &.{});
-    try stdout.interface.writeAll("Run `zig build test` to run the tests.\n");
+    try stdout.interface.writeAll("Hello, world!\n");
 }
 
 test "simple test" {

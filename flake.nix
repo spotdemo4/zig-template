@@ -100,10 +100,12 @@
               zigTarget =
                 replaceStrings
                   [
+                    "arm64-apple-darwin"
                     "-unknown-"
                     "-w64-mingw32"
                   ]
                   [
+                    "aarch64-macos-none"
                     "-"
                     "-windows-gnu"
                   ]
@@ -159,6 +161,12 @@
                 runHook postInstall
               '';
 
+              installCheckPhase = ''
+                runHook preInstallCheck
+                test "$("$out/bin/zig_template")" = "Hello, world!"
+                runHook postInstallCheck
+              '';
+
               meta = {
                 mainProgram = "zig_template";
                 description = "zig template";
@@ -191,14 +199,7 @@
 
         # nix flake check
         checks = pkgs.mkChecks {
-          zig = self.packages.${system}.default.overrideAttrs {
-            dontBuild = true;
-            installPhase = ''
-              runHook preInstall
-              touch $out
-              runHook postInstall
-            '';
-          };
+          inherit (self.packages.${system}) default;
 
           zigfmt = {
             root = ./.;
