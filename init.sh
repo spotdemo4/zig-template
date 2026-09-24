@@ -184,7 +184,8 @@ case $module in
 esac
 replace_literal "$old_slug" "$slug" flake.nix
 replace_literal "$old_module" "$module" build.zig build.zig.zon src/main.zig flake.nix
-replace_literal '0.2.4' "$version" build.zig.zon flake.nix
+sed -i -E "s@^(    \.version = \")[^\"]*@\1$version@" build.zig.zon
+sed -i -E "/^[[:space:]]*pname = \"$slug\";$/,/^[[:space:]]*version = /s@^([[:space:]]*version = \")[^\"]*@\1$version@" flake.nix
 sed -i '/^[[:space:]]*\.fingerprint = /d' build.zig.zon
 if command -v zig >/dev/null; then
   zig_command=(zig build)
