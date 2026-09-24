@@ -349,6 +349,8 @@ done
 for url in "${push_urls[@]}"; do
   "${new_git[@]}" remote set-url --add --push origin "$url"
 done
+nix fmt
+
 "${new_git[@]}" add -A
 existing_tracked=()
 for file in "${tracked_files[@]}"; do
