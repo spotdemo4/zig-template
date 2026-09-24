@@ -85,7 +85,7 @@
           default = pkgs.stdenv.mkDerivation (
             final: with pkgs.lib; {
               pname = "zig-template";
-              version = "0.5.0";
+              version = "0.5.1";
 
               src = fileset.toSource {
                 root = ./.;
