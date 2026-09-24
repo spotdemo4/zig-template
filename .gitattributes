@@ -1,6 +1,9 @@
 # Zig template - Git attributes
 # https://git-scm.com/docs/gitattributes
 
+# Linguist: exclude template initializer from language stats
+/init.sh -linguist-detectable
+
 # Linguist: lock file is generated
 flake.lock linguist-generated=true
 
