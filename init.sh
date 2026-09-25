@@ -227,10 +227,19 @@ encoded_lock_url=${encoded_lock_url//\//%252F}
 nixpkgs_badge="[![nixpkgs](https://img.shields.io/endpoint?url=https%3A%2F%2Fnix-shield.trev.zip%2Fbadge%3Furl%3D${encoded_lock_url}%26input%3Dnixpkgs&logoColor=%23bac2de&labelColor=%23313244&color=%235277C3)](https://nixos.org/)"
 language_badge="[![zig](<https://img.shields.io/badge/dynamic/regex?url=${raw_url}/build.zig.zon&search=.minimum_zig_version%20%3D%20%22(.*)%22&replace=%241&logo=zig&logoColor=%23bac2de&label=version&labelColor=%23313244&color=%23F7A41D>)](https://ziglang.org/)"
 
+readme_sections=$(sed -n '/^## using$/,$p' README.md)
+readme_sections=${readme_sections//"$old_url"/"$web_url"}
+if $is_github; then
+  image="ghcr.io/${repo_path,,}:latest"
+else
+  image="$host/${repo_path,,}:latest"
+fi
+readme_sections=${readme_sections//trev.zip\/template\/zig:latest/"$image"}
+
 {
   printf '# %s\n\n' "$title"
   printf '%s\n%s\n%s\n%s\n\n' "$check_badge" "$vulnerable_badge" "$nixpkgs_badge" "$language_badge"
-  printf '%s\n' "$description"
+  printf '%s\n\n%s\n' "$description" "$readme_sections"
 } >README.md
 
 remove_checks() {
