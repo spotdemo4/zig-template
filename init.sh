@@ -340,6 +340,16 @@ else
   fi
 fi
 
+read -r -p 'Are you using Zed? [Y/n] ' reply || reply=
+if [[ $reply =~ ^[Nn]([Oo])?$ ]]; then
+  rm -rf .zed
+fi
+
+read -r -p 'Are you using VS Code? [Y/n] ' reply || reply=
+if [[ $reply =~ ^[Nn]([Oo])?$ ]]; then
+  rm -rf .vscode
+fi
+
 "${new_git[@]}" config core.bare false
 "${new_git[@]}" config user.name "$git_name"
 "${new_git[@]}" config user.email "$git_email"
