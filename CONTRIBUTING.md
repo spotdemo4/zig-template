@@ -10,7 +10,20 @@
 nix develop
 ```
 
+with [direnv](https://direnv.net/):
+
+```sh
+ln -s .envrc.project .envrc
+direnv allow
+```
+
 ### run
+
+```sh
+nix run
+```
+
+with [zig](https://ziglang.org/):
 
 ```sh
 zig build run
@@ -22,10 +35,22 @@ zig build run
 nix fmt
 ```
 
+with [zig](https://ziglang.org/):
+
+```sh
+zig fmt build.zig src
+```
+
 ### check
 
 ```sh
 nix flake check
+```
+
+with [zig](https://ziglang.org/):
+
+```sh
+zig build test
 ```
 
 ### build
@@ -34,7 +59,15 @@ nix flake check
 nix build
 ```
 
+with [zig](https://ziglang.org/):
+
+```sh
+zig build
+```
+
 ### release
+
+with [bumper](https://trev.zip/llc/bumper):
 
 ```sh
 bumper
