@@ -1,0 +1,19 @@
+# https://github.com/actions/labeler
+
+actions:
+  - changed-files:
+      - any-glob-to-any-file:
+          - .github/workflows/**
+          - .forgejo/workflows/**
+
+nix:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "**/*.nix"
+          - "**/flake.lock"
+
+zig:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "**/*.zig"
+          - "**/build.zig.zon"

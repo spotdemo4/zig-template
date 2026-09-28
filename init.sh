@@ -330,16 +330,12 @@ if $is_github; then
       "${new_git[@]}" remote add forgejo "$secondary_remote"
       replace_literal 'template/zig' "$secondary_repo_path" .forgejo/renovate.json
       replace_literal 'https://trev.zip/api/v1' "${secondary_web_url%/$secondary_repo_path}/api/v1" .forgejo/renovate.json
-      replace_literal 'REGISTRY: trev.zip' "REGISTRY: $secondary_host" .forgejo/workflows/release.yaml
-      replace_literal '//trev.zip/api/packages' "//$secondary_host/api/packages" .forgejo/workflows/release.yaml
     fi
   fi
 else
   if [[ -f .forgejo/renovate.json ]]; then
     replace_literal 'template/zig' "$repo_path" .forgejo/renovate.json
     replace_literal 'https://trev.zip/api/v1' "${web_url%/$repo_path}/api/v1" .forgejo/renovate.json
-    replace_literal 'REGISTRY: trev.zip' "REGISTRY: $host" .forgejo/workflows/release.yaml
-    replace_literal '//trev.zip/api/packages' "//$host/api/packages" .forgejo/workflows/release.yaml
   fi
   if [[ -d .github ]]; then
     read -r -p 'Non-GitHub origin detected. Delete .github? [y/N] ' reply || reply=
