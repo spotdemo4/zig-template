@@ -25,6 +25,29 @@ if [[ $(git config --bool core.sparseCheckout || true) == true ]]; then
   printf 'Sparse checkouts are not supported.\n' >&2
   exit 1
 fi
+git_name=$(git config user.name || true)
+git_email=$(git config user.email || true)
+if [[ -z $git_name || -z $git_email ]]; then
+  printf 'Configure Git user.name and user.email before running the initializer.\n' >&2
+  exit 1
+fi
+if [[ $git_name =~ [[:cntrl:]] || $git_email =~ [[:cntrl:]] ]]; then
+  printf 'Git user.name and user.email cannot contain control characters.\n' >&2
+  exit 1
+fi
+
+# Repositories set up with nix flake init have no commits yet. Commit the
+# template so a failed run can be rolled back; the new repository replaces it.
+if ! git rev-parse --verify --quiet HEAD >/dev/null; then
+  git add -A
+  env \
+    GIT_AUTHOR_NAME="$git_name" \
+    GIT_AUTHOR_EMAIL="$git_email" \
+    GIT_COMMITTER_NAME="$git_name" \
+    GIT_COMMITTER_EMAIL="$git_email" \
+    git -c commit.gpgsign=false -c core.hooksPath=/dev/null commit --quiet --message 'chore: add template'
+fi
+
 if ! worktree_status=$(git status --porcelain=v1 --untracked-files=all); then
   printf 'Unable to inspect the Git worktree.\n' >&2
   exit 1
@@ -41,17 +64,6 @@ if ! git ls-files -z >"$tracked_file_list"; then
 fi
 mapfile -d '' -t tracked_files <"$tracked_file_list"
 rm "$tracked_file_list"
-
-git_name=$(git config user.name || true)
-git_email=$(git config user.email || true)
-if [[ -z $git_name || -z $git_email ]]; then
-  printf 'Configure Git user.name and user.email before running the initializer.\n' >&2
-  exit 1
-fi
-if [[ $git_name =~ [[:cntrl:]] || $git_email =~ [[:cntrl:]] ]]; then
-  printf 'Git user.name and user.email cannot contain control characters.\n' >&2
-  exit 1
-fi
 
 title=$1
 description=$2
@@ -172,7 +184,6 @@ escape_string() {
 escaped_description=$(escape_string "$description")
 nix_description=$(printf '%s' "$escaped_description" | sed 's/${/\\${/g')
 
-changes_started=true
 old_slug=zig-template
 old_module=zig_template
 old_description='zig template'
@@ -182,6 +193,37 @@ case $module in
     module="_$module"
     ;;
 esac
+
+# Find the template commit this project started from. Repositories created with
+# "use this template" have a new commit, but its tree matches the template's.
+template_commit=
+if GIT_TERMINAL_PROMPT=0 git fetch --quiet --no-tags "$old_url" main 2>/dev/null; then
+  declare -A template_trees=()
+  while read -r commit tree; do
+    if [[ ! -v template_trees[$tree] ]]; then
+      template_trees[$tree]=$commit
+    fi
+  done < <(git log --format='%H %T' FETCH_HEAD)
+  while read -r tree; do
+    # nix flake init drops the executable bit from init.sh
+    tree=$(git ls-tree -z "$tree" | sed -z 's/^100644\( blob [0-9a-f]*\tinit\.sh\)$/100755\1/' | git mktree -z --missing)
+    if [[ -v template_trees[$tree] ]]; then
+      template_commit=${template_trees[$tree]}
+      break
+    fi
+  done < <(git log --format='%T' HEAD)
+fi
+
+changes_started=true
+rm template.schema.json
+sed -i '/^        # nix flake init /,/^        };$/d' flake.nix
+if [[ -n $template_commit ]]; then
+  printf '{ "$schema": "%s", "url": "%s", "commit": "%s" }\n' \
+    "$old_url/raw/branch/main/template.schema.json" "$old_url" "$template_commit" >.template.json
+else
+  printf 'Warning: unable to find the template commit; .template.json was not created.\n' >&2
+fi
+
 replace_literal "$old_slug" "$slug" flake.nix
 replace_literal "$old_module" "$module" build.zig build.zig.zon src/main.zig flake.nix
 sed -i -E "s@^(    \.version = \")[^\"]*@\1$version@" build.zig.zon

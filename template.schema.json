@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://trev.zip/template/zig/raw/branch/main/template.schema.json",
+  "title": "Template",
+  "description": "The template a project was created from",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "url": {
+      "description": "URL of the template repository",
+      "type": "string",
+      "format": "uri"
+    },
+    "commit": {
+      "description": "Latest template commit whose changes have been applied",
+      "type": "string",
+      "pattern": "^([0-9a-f]{40}|[0-9a-f]{64})$"
+    }
+  },
+  "required": ["url", "commit"],
+  "additionalProperties": false
+}

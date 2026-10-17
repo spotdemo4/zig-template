@@ -7,10 +7,17 @@
 
 template for [zig](https://ziglang.org/)
 
-to initialize a new project, run:
+to initialize a new project, create a repository from this template and run:
 
 ```sh
 ./init.sh "Title" "Description"
+```
+
+or, in a new git repository with an `origin` remote, run:
+
+```sh
+nix flake init -t git+https://trev.zip/template/zig
+bash init.sh "Title" "Description"
 ```
 
 part of [spotdemo4/templates](https://github.com/spotdemo4/templates)
