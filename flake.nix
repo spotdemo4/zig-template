@@ -220,7 +220,7 @@
         checks = pkgs.mkChecks {
           inherit (self.packages.${system}) default;
 
-          zigfmt = {
+          zig-lint = {
             root = ./.;
             filter = file: file.hasExt "zig";
             packages = with pkgs; [
