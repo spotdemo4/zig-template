@@ -173,8 +173,10 @@
                 license = licenses.mit;
                 platforms = platforms.all;
                 homepage = "https://trev.zip/template/zig";
-                changelog = "https://trev.zip/template/zig/releases";
-                downloadPage = "https://trev.zip/template/zig/releases/tag/v${final.version}";
+                downloadPage = "https://trev.zip/template/zig/releases";
+                changelog = "https://trev.zip/template/zig/releases/tag/v${final.version}";
+                sourceProvenance = [ sourceTypes.fromSource ];
+                maintainers = [ maintainers.spotdemo4 ];
               };
             }
           );
