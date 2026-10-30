@@ -132,7 +132,6 @@
               ];
 
               dontConfigure = true;
-              doCheck = true;
 
               zigCacheSetup = ''
                 export ZIG_GLOBAL_CACHE_DIR="$TMPDIR/zig-global-cache"
@@ -147,6 +146,7 @@
                 runHook postBuild
               '';
 
+              doCheck = true;
               checkPhase = ''
                 runHook preCheck
                 ${optionalString final.canRunTarget ''
@@ -161,6 +161,7 @@
                 runHook postInstall
               '';
 
+              doInstallCheck = true;
               installCheckPhase = ''
                 runHook preInstallCheck
                 test "$("$out/bin/zig_template")" = "Hello, world!"
