@@ -359,8 +359,8 @@ if [[ ! -d .forgejo ]]; then
 fi
 
 if $is_github; then
-  if [[ -f .github/renovate.json ]]; then
-    replace_literal "spotdemo4/$old_slug" "$repo_path" .github/renovate.json
+  if [[ -f .github/renovate.jsonc ]]; then
+    replace_literal "spotdemo4/$old_slug" "$repo_path" .github/renovate.jsonc
   fi
   if [[ -d .forgejo ]]; then
     read -r -p 'GitHub origin detected. Delete .forgejo? [y/N] ' reply || reply=
@@ -370,14 +370,14 @@ if $is_github; then
     else
       read_secondary_repository Forgejo
       "${new_git[@]}" remote add forgejo "$secondary_remote"
-      replace_literal 'template/zig' "$secondary_repo_path" .forgejo/renovate.json
-      replace_literal 'https://trev.zip/api/v1' "${secondary_web_url%/$secondary_repo_path}/api/v1" .forgejo/renovate.json
+      replace_literal 'template/zig' "$secondary_repo_path" .forgejo/renovate.jsonc
+      replace_literal 'https://trev.zip/api/v1' "${secondary_web_url%/$secondary_repo_path}/api/v1" .forgejo/renovate.jsonc
     fi
   fi
 else
-  if [[ -f .forgejo/renovate.json ]]; then
-    replace_literal 'template/zig' "$repo_path" .forgejo/renovate.json
-    replace_literal 'https://trev.zip/api/v1' "${web_url%/$repo_path}/api/v1" .forgejo/renovate.json
+  if [[ -f .forgejo/renovate.jsonc ]]; then
+    replace_literal 'template/zig' "$repo_path" .forgejo/renovate.jsonc
+    replace_literal 'https://trev.zip/api/v1' "${web_url%/$repo_path}/api/v1" .forgejo/renovate.jsonc
   fi
   if [[ -d .github ]]; then
     read -r -p 'Non-GitHub origin detected. Delete .github? [y/N] ' reply || reply=
@@ -387,7 +387,7 @@ else
     else
       read_secondary_repository GitHub
       "${new_git[@]}" remote add github "$secondary_remote"
-      replace_literal "spotdemo4/$old_slug" "$secondary_repo_path" .github/renovate.json
+      replace_literal "spotdemo4/$old_slug" "$secondary_repo_path" .github/renovate.jsonc
     fi
   fi
 fi
