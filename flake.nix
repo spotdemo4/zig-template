@@ -292,7 +292,13 @@
 
           config = {
             root = ./.;
-            filter = file: file.hasExt "json" || file.hasExt "jsonc" || file.hasExt "yaml" || file.hasExt "toml" || file.hasExt "md";
+            filter =
+              file:
+              file.hasExt "json"
+              || file.hasExt "jsonc"
+              || file.hasExt "yaml"
+              || file.hasExt "toml"
+              || file.hasExt "md";
             packages = with pkgs; [
               oxfmt
             ];
