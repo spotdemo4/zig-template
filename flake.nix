@@ -35,8 +35,8 @@
             shellHook = pkgs.shellhook.ref;
             packages = with pkgs; [
               # zig
-              zig_0_16
-              zls_0_16
+              zig_0_17
+              zls_0_17
               lldb
 
               vscode-json-languageserver # json
@@ -128,7 +128,7 @@
               canRunTarget = pkgs.stdenv.buildPlatform.canExecute pkgs.stdenv.hostPlatform;
 
               nativeBuildInputs = with pkgs; [
-                buildPackages.zig_0_16
+                buildPackages.zig_0_17
               ];
 
               dontConfigure = true;
@@ -213,7 +213,7 @@
         formatter = pkgs.treefmt.withConfig {
           configFile = ./treefmt.toml;
           runtimeInputs = with pkgs; [
-            zig_0_16
+            zig_0_17
             nixfmt
             oxfmt
           ];
@@ -227,7 +227,7 @@
             root = ./.;
             filter = file: file.hasExt "zig";
             packages = with pkgs; [
-              zig_0_16
+              zig_0_17
             ];
             script = ''
               zig fmt --check "$file"
