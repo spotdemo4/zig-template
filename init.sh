@@ -1,110 +1,238 @@
 #!/usr/bin/env bash
+# The script often single-quotes text containing $ for printf, sed and Nix
+# shellcheck disable=SC2016
+
+# Initializes a project from this template. init.test.sh tests it.
 
 set -euo pipefail
+# Functions that print their result run in command substitutions
+shopt -s inherit_errexit
 
-if [[ $# -ne 2 || -z $1 || -z $2 ]]; then
-  printf 'Usage: %s "Title" "Description"\n' "${0##*/}" >&2
-  exit 1
-fi
+old_slug=zig-template
+old_module=zig_template
+old_description='zig template'
+old_url=https://trev.zip/template/zig
+old_maintainer='maintainers.spotdemo4'
+old_maintainer_email=me@trev.xyz
+version=0.0.1
 
-root=$(git rev-parse --show-toplevel 2>/dev/null) || {
-  printf 'The initializer must be run from a Git repository.\n' >&2
+die() {
+  printf '%s\n' "$1" >&2
   exit 1
 }
-root=$(realpath "$root")
-script_path=$(realpath "$0")
-if [[ $(pwd -P) != "$root" || $script_path != "$root/init.sh" ]]; then
-  printf 'Run ./init.sh from the repository root.\n' >&2
-  exit 1
-fi
-if [[ ! -d $root/.git || -L $root/.git ]]; then
-  printf 'Linked worktrees and repositories with a .git file are not supported.\n' >&2
-  exit 1
-fi
-if [[ $(git config --bool core.sparseCheckout || true) == true ]]; then
-  printf 'Sparse checkouts are not supported.\n' >&2
-  exit 1
-fi
-git_name=$(git config user.name || true)
-git_email=$(git config user.email || true)
-if [[ -z $git_name || -z $git_email ]]; then
-  printf 'Configure Git user.name and user.email before running the initializer.\n' >&2
-  exit 1
-fi
-if [[ $git_name =~ [[:cntrl:]] || $git_email =~ [[:cntrl:]] ]]; then
-  printf 'Git user.name and user.email cannot contain control characters.\n' >&2
-  exit 1
-fi
 
-# Repositories set up with nix flake init have no commits yet. Commit the
-# template so a failed run can be rolled back; the new repository replaces it.
-if ! git rev-parse --verify --quiet HEAD >/dev/null; then
-  git add -A
+# Sets remote_host, remote_repo_path and remote_web_url from a Git remote URL.
+# The label names the URL in error messages.
+parse_remote() {
+  local label=$1 url=$2 scheme=https remote_path authority
+  if [[ $url == *'?'* || $url == *'#'* ]]; then
+    die "$label cannot contain a query string or fragment."
+  fi
+  case $url in
+    http://* | https://*)
+      scheme=${url%%://*}
+      remote_path=${url#*://}
+      authority=${remote_path%%/*}
+      remote_host=${authority##*@}
+      remote_repo_path=${remote_path#*/}
+      ;;
+    git@*:*)
+      remote_host=${url#git@}
+      remote_host=${remote_host%%:*}
+      remote_repo_path=${url#*:}
+      ;;
+    ssh://*)
+      remote_path=${url#ssh://}
+      authority=${remote_path%%/*}
+      remote_host=${authority##*@}
+      remote_host=${remote_host%%:*}
+      remote_repo_path=${remote_path#*/}
+      ;;
+    *)
+      die "Unsupported ${label,}."
+      ;;
+  esac
+  remote_repo_path=${remote_repo_path#/}
+  remote_repo_path=${remote_repo_path%.git}
+  if [[ $remote_repo_path != */* ]]; then
+    die "$label must identify an owner and repository."
+  fi
+  if [[ ! $remote_host =~ ^[A-Za-z0-9.-]+(:[0-9]+)?$ || ! $remote_repo_path =~ ^[A-Za-z0-9._/-]+$ ]]; then
+    die "$label contains unsupported host or path characters."
+  fi
+  remote_web_url="$scheme://$remote_host/$remote_repo_path"
+}
+
+# Prints the package name for a project title.
+slugify() {
+  local slug
+  slug=$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/-/g; s/^-+//; s/-+$//')
+  if [[ ! $slug =~ ^[a-z][a-z0-9-]*$ ]]; then
+    die 'Title must produce a package name beginning with a letter.'
+  fi
+  printf '%s\n' "$slug"
+}
+
+# Prints the Zig module name for a slug. Zig identifiers can't contain hyphens
+# or be keywords, so those are replaced and prefixed.
+zig_module() {
+  local module=${1//-/_}
+  case $module in
+    addrspace | align | allowzero | and | anyframe | anytype | asm | async | await | break | callconv | catch | comptime | const | continue | defer | else | enum | errdefer | error | export | extern | fn | for | if | inline | linksection | noalias | noinline | nosuspend | opaque | or | orelse | packed | pub | resume | return | struct | suspend | switch | test | threadlocal | try | union | unreachable | usingnamespace | var | volatile | while)
+      module="_$module"
+      ;;
+  esac
+  printf '%s\n' "$module"
+}
+
+# Prints a value escaped for a double-quoted Nix string.
+nix_string() {
+  local value=$1
+  # shellcheck disable=SC1003
+  value=${value//'\'/'\\'}
+  value=${value//'"'/'\"'}
+  value=${value//'${'/'\${'}
+  printf '%s\n' "$value"
+}
+
+# Replaces every occurrence of old with new in the given files.
+replace_literal() {
+  local old=$1 new=$2 file content
+  shift 2
+  for file in "$@"; do
+    content=$(<"$file")
+    printf '%s\n' "${content//"$old"/"$new"}" >"$file"
+  done
+}
+
+remove_checks() {
+  local key
+  for key in "$@"; do
+    sed -i "/^          $key = {$/,/^          };$/d" flake.nix
+  done
+}
+
+# Prints the template commit this project started from. Repositories created
+# with "use this template" have a new commit, but its tree matches the
+# template's.
+find_template_commit() {
+  local commit tree
+  local -A template_trees=()
+  if ! GIT_TERMINAL_PROMPT=0 git fetch --quiet --no-tags "$old_url" main 2>/dev/null; then
+    return
+  fi
+  while read -r commit tree; do
+    if [[ ! -v template_trees[$tree] ]]; then
+      template_trees[$tree]=$commit
+    fi
+  done < <(git log --format='%H %T' FETCH_HEAD)
+  while read -r tree; do
+    # nix flake init drops the executable bit from init.sh
+    tree=$(git ls-tree -z "$tree" | sed -z 's/^100644\( blob [0-9a-f]*\tinit\.sh\)$/100755\1/' | git mktree -z --missing)
+    if [[ -v template_trees[$tree] ]]; then
+      printf '%s\n' "${template_trees[$tree]}"
+      return
+    fi
+  done < <(git log --format='%T' HEAD)
+}
+
+# Checks that the initializer runs from the root of a regular Git repository
+# with a Git user.
+check_repository() {
+  root=$(git rev-parse --show-toplevel 2>/dev/null) || die 'The initializer must be run from a Git repository.'
+  root=$(realpath "$root")
+  script_path=$(realpath "$0")
+  if [[ $(pwd -P) != "$root" || $script_path != "$root/init.sh" ]]; then
+    die 'Run ./init.sh from the repository root.'
+  fi
+  if [[ ! -d $root/.git || -L $root/.git ]]; then
+    die 'Linked worktrees and repositories with a .git file are not supported.'
+  fi
+  if [[ $(git config --bool core.sparseCheckout || true) == true ]]; then
+    die 'Sparse checkouts are not supported.'
+  fi
+  git_name=$(git config user.name || true)
+  git_email=$(git config user.email || true)
+  if [[ -z $git_name || -z $git_email ]]; then
+    die 'Configure Git user.name and user.email before running the initializer.'
+  fi
+  if [[ $git_name =~ [[:cntrl:]] || $git_email =~ [[:cntrl:]] ]]; then
+    die 'Git user.name and user.email cannot contain control characters.'
+  fi
+}
+
+# Checks the title and description, and reads the project's location from the
+# origin remote.
+check_project() {
+  if [[ $title =~ [[:cntrl:]] || $description =~ [[:cntrl:]] ]]; then
+    die 'Title and description cannot contain control characters.'
+  fi
+  slug=$(slugify "$title")
+  module=$(zig_module "$slug")
+
+  remote=$(git remote get-url origin 2>/dev/null) || die 'Unable to read the origin remote.'
+  parse_remote 'Origin URL' "$remote"
+  host=$remote_host
+  repo_path=$remote_repo_path
+  web_url=$remote_web_url
+  provider_host=${host%%:*}
+  if [[ ${provider_host,,} == github.com ]]; then
+    is_github=true
+  else
+    is_github=false
+  fi
+  mapfile -t remote_urls < <(git config --get-all remote.origin.url)
+  mapfile -t push_urls < <(git config --get-all remote.origin.pushurl || true)
+}
+
+# Checks that the worktree is clean and records the tracked files.
+check_worktree() {
+  local worktree_status
+  # Repositories set up with nix flake init have no commits yet. Commit the
+  # template so a failed run can be rolled back; the new repository replaces it.
+  if ! git rev-parse --verify --quiet HEAD >/dev/null; then
+    git add -A
+    git_as_user git -c commit.gpgsign=false -c core.hooksPath=/dev/null commit --quiet --message 'chore: add template'
+  fi
+
+  worktree_status=$(git status --porcelain=v1 --untracked-files=all) || die 'Unable to inspect the Git worktree.'
+  if [[ -n $worktree_status ]]; then
+    die 'Commit or discard all existing worktree changes before running the initializer.'
+  fi
+  mapfile -d '' -t tracked_files < <(git ls-files -z)
+  wait "$!" || die 'Unable to inspect tracked files.'
+}
+
+# Runs a Git command as the Git user, whatever the environment sets.
+git_as_user() {
   env \
     GIT_AUTHOR_NAME="$git_name" \
     GIT_AUTHOR_EMAIL="$git_email" \
     GIT_COMMITTER_NAME="$git_name" \
     GIT_COMMITTER_EMAIL="$git_email" \
-    git -c commit.gpgsign=false -c core.hooksPath=/dev/null commit --quiet --message 'chore: add template'
-fi
-
-if ! worktree_status=$(git status --porcelain=v1 --untracked-files=all); then
-  printf 'Unable to inspect the Git worktree.\n' >&2
-  exit 1
-fi
-if [[ -n $worktree_status ]]; then
-  printf 'Commit or discard all existing worktree changes before running the initializer.\n' >&2
-  exit 1
-fi
-tracked_file_list=$(mktemp)
-if ! git ls-files -z >"$tracked_file_list"; then
-  rm -f "$tracked_file_list"
-  printf 'Unable to inspect tracked files.\n' >&2
-  exit 1
-fi
-mapfile -d '' -t tracked_files <"$tracked_file_list"
-rm "$tracked_file_list"
-
-title=$1
-description=$2
-version=0.0.1
-year=$(date +%Y)
-
-if [[ $title =~ [[:cntrl:]] || $description =~ [[:cntrl:]] ]]; then
-  printf 'Title and description cannot contain control characters.\n' >&2
-  exit 1
-fi
-
-slug=$(printf '%s' "$title" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/-/g; s/^-+//; s/-+$//')
-if [[ ! $slug =~ ^[a-z][a-z0-9-]*$ ]]; then
-  printf 'Title must produce a package name beginning with a letter.\n' >&2
-  exit 1
-fi
-module=${slug//-/_}
-
-remote=$(git remote get-url origin 2>/dev/null) || {
-  printf 'Unable to read the origin remote.\n' >&2
-  exit 1
+    "$@"
 }
-if [[ $remote == *'?'* || $remote == *'#'* ]]; then
-  printf 'Origin URL cannot contain a query string or fragment.\n' >&2
-  exit 1
-fi
-mapfile -t remote_urls < <(git config --get-all remote.origin.url)
-mapfile -t push_urls < <(git config --get-all remote.origin.pushurl || true)
 
-repo_name=${root##*/}
-new_git_dir="${root%/*}/.${repo_name}.git-new.$$"
-old_git_dir="${root%/*}/.${repo_name}.git-old.$$"
-if [[ -e $new_git_dir || -e $old_git_dir ]]; then
-  printf 'Temporary Git directory already exists.\n' >&2
-  exit 1
-fi
-git init --bare --quiet --initial-branch=main "$new_git_dir"
-new_git=(git --git-dir="$new_git_dir" --work-tree="$root")
-swap_started=false
-changes_started=false
-cleanup_git_reset() {
+# Creates the repository that replaces .git once the project is initialized,
+# and restores the template if initialization fails.
+start_new_repository() {
+  local repo_name=${root##*/}
+  new_git_dir="${root%/*}/.${repo_name}.git-new.$$"
+  old_git_dir="${root%/*}/.${repo_name}.git-old.$$"
+  if [[ -e $new_git_dir || -e $old_git_dir ]]; then
+    die 'Temporary Git directory already exists.'
+  fi
+  git init --bare --quiet --initial-branch=main "$new_git_dir"
+  new_git=(git --git-dir="$new_git_dir" --work-tree="$root")
+  swap_started=false
+  changes_started=false
+  trap cleanup EXIT
+  trap 'exit 130' INT
+  trap 'exit 143' TERM
+  trap 'exit 129' HUP
+}
+
+cleanup() {
   local status=$?
   trap - EXIT INT TERM HUP
   if $swap_started && [[ -e $old_git_dir ]]; then
@@ -115,132 +243,49 @@ cleanup_git_reset() {
     fi
   elif $changes_started; then
     git restore --source=HEAD --staged --worktree -- . || true
-    git clean -fd || true
+    git clean -fdq || true
   fi
   rm -rf "$new_git_dir"
   exit "$status"
 }
-trap cleanup_git_reset EXIT
-trap 'exit 130' INT
-trap 'exit 143' TERM
-trap 'exit 129' HUP
 
-case $remote in
-  http://* | https://*)
-    scheme=${remote%%://*}
-    remote_path=${remote#*://}
-    authority=${remote_path%%/*}
-    host=${authority##*@}
-    repo_path=${remote_path#*/}
-    repo_path=${repo_path%.git}
-    web_url="${scheme}://${host}/${repo_path}"
-    ;;
-  git@*:*)
-    host=${remote#git@}
-    host=${host%%:*}
-    repo_path=${remote#*:}
-    repo_path=${repo_path%.git}
-    web_url="https://${host}/${repo_path}"
-    ;;
-  ssh://*)
-    remote_path=${remote#ssh://}
-    authority=${remote_path%%/*}
-    host=${authority##*@}
-    host=${host%%:*}
-    repo_path=${remote_path#*/}
-    repo_path=${repo_path%.git}
-    web_url="https://${host}/${repo_path}"
-    ;;
-  *)
-    printf 'Unsupported origin URL.\n' >&2
-    exit 1
-    ;;
-esac
+# Removes the template's own files and replaces its metadata with the project's.
+apply_metadata() {
+  local year library_field=
+  year=$(date +%Y)
 
-repo_path=${repo_path#/}
-repo_path=${repo_path%.git}
-if [[ $repo_path != */* ]]; then
-  printf 'Origin must identify an owner and repository.\n' >&2
-  exit 1
-fi
-if [[ ! $host =~ ^[A-Za-z0-9.-]+(:[0-9]+)?$ || ! $repo_path =~ ^[A-Za-z0-9._/-]+$ ]]; then
-  printf 'Origin URL contains unsupported host or path characters.\n' >&2
-  exit 1
-fi
-provider_host=${host%%:*}
+  rm init.test.sh template.schema.json
+  sed -i '/^        # nix flake init /,/^        };$/d' flake.nix
+  remove_checks init
+  sed -i '/^# Linguist: exclude template /,/^$/d' .gitattributes
 
-replace_literal() {
-  local old=$1 new=$2 pattern replacement
-  shift 2
-  pattern=$(printf '%s' "$old" | sed 's/[][\\.^$*@]/\\&/g')
-  replacement=$(printf '%s' "$new" | sed 's/[&@\\]/\\&/g')
-  sed -i "s@${pattern}@${replacement}@g" "$@"
-}
-
-escape_string() {
-  printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'
-}
-
-escaped_description=$(escape_string "$description")
-nix_description=$(printf '%s' "$escaped_description" | sed 's/${/\\${/g')
-
-old_slug=zig-template
-old_module=zig_template
-old_description='zig template'
-old_url=https://trev.zip/template/zig
-case $module in
-  addrspace | align | allowzero | and | anyframe | anytype | asm | async | await | break | callconv | catch | comptime | const | continue | defer | else | enum | errdefer | error | export | extern | fn | for | if | inline | linksection | noalias | noinline | nosuspend | opaque | or | orelse | packed | pub | resume | return | struct | suspend | switch | test | threadlocal | try | union | unreachable | usingnamespace | var | volatile | while)
-    module="_$module"
-    ;;
-esac
-
-# Find the template commit this project started from. Repositories created with
-# "use this template" have a new commit, but its tree matches the template's.
-template_commit=
-if GIT_TERMINAL_PROMPT=0 git fetch --quiet --no-tags "$old_url" main 2>/dev/null; then
-  declare -A template_trees=()
-  while read -r commit tree; do
-    if [[ ! -v template_trees[$tree] ]]; then
-      template_trees[$tree]=$commit
+  if [[ -n $template_commit ]]; then
+    if $is_library; then
+      library_field=', "library": true'
     fi
-  done < <(git log --format='%H %T' FETCH_HEAD)
-  while read -r tree; do
-    # nix flake init drops the executable bit from init.sh
-    tree=$(git ls-tree -z "$tree" | sed -z 's/^100644\( blob [0-9a-f]*\tinit\.sh\)$/100755\1/' | git mktree -z --missing)
-    if [[ -v template_trees[$tree] ]]; then
-      template_commit=${template_trees[$tree]}
-      break
-    fi
-  done < <(git log --format='%T' HEAD)
-fi
-
-read -r -p 'Is this project a library? [y/N] ' reply || reply=
-if [[ $reply =~ ^[Yy]([Ee][Ss])?$ ]]; then
-  is_library=true
-else
-  is_library=false
-fi
-
-changes_started=true
-rm template.schema.json
-sed -i '/^        # nix flake init /,/^        };$/d' flake.nix
-if [[ -n $template_commit ]]; then
-  library_field=
-  if $is_library; then
-    library_field=', "library": true'
+    printf '{ "$schema": "%s", "url": "%s", "commit": "%s"%s }\n' \
+      "$old_url/raw/branch/main/template.schema.json" "$old_url" "$template_commit" "$library_field" >.template.json
+  else
+    printf 'Warning: unable to find the template commit; .template.json was not created.\n' >&2
   fi
-  printf '{ "$schema": "%s", "url": "%s", "commit": "%s"%s }\n' \
-    "$old_url/raw/branch/main/template.schema.json" "$old_url" "$template_commit" "$library_field" >.template.json
-else
-  printf 'Warning: unable to find the template commit; .template.json was not created.\n' >&2
-fi
 
-replace_literal "$old_slug" "$slug" flake.nix
-replace_literal "$old_module" "$module" build.zig build.zig.zon src/main.zig flake.nix
-sed -i -E "s@^(    \.version = \")[^\"]*@\1$version@" build.zig.zon
-sed -i -E "/^[[:space:]]*pname = \"$slug\";$/,/^[[:space:]]*version = /s@^([[:space:]]*version = \")[^\"]*@\1$version@" flake.nix
-if $is_library; then
-  # A library starts without the program.
+  replace_literal "$old_slug" "$slug" flake.nix
+  replace_literal "$old_module" "$module" build.zig build.zig.zon src/main.zig flake.nix
+  sed -i -E "s@^(    \.version = \")[^\"]*@\1$version@" build.zig.zon
+  sed -i -E "/^[[:space:]]*pname = \"$slug\";$/,/^[[:space:]]*version = /s@^([[:space:]]*version = \")[^\"]*@\1$version@" flake.nix
+  replace_literal "$old_description" "$(nix_string "$description")" flake.nix
+  replace_literal "$old_url" "$web_url" flake.nix
+  replace_literal 'Copyright (c) 2026 trev' "Copyright (c) $year $git_name" LICENSE
+  # Only the template's author has a nixpkgs maintainer entry.
+  if [[ ${git_email,,} != "$old_maintainer_email" ]]; then
+    replace_literal "[ $old_maintainer ]" \
+      "[ { name = \"$(nix_string "$git_name")\"; email = \"$(nix_string "$git_email")\"; } ]" flake.nix
+  fi
+}
+
+# Replaces the program with a library module.
+make_library() {
+  local workflow
   rm src/main.zig
   cat >build.zig <<EOF
 const std = @import("std");
@@ -302,235 +347,235 @@ EOF
   if [[ -f .forgejo/workflows/release.yaml ]]; then
     sed -i -E '/^          (CONTAINER_REGISTRY_PASSWORD|DELETE_OLD_RELEASE_ARTIFACTS): /d' .forgejo/workflows/release.yaml
   fi
-fi
-sed -i '/^[[:space:]]*\.fingerprint = /d' build.zig.zon
-if command -v zig >/dev/null; then
-  zig_command=(zig build)
-else
-  zig_command=(nix develop -c zig build)
-fi
-if zig_output=$("${zig_command[@]}" 2>&1); then
-  printf '%s\n' "$zig_output"
-else
-  fingerprint=$(printf '%s\n' "$zig_output" | sed -n 's/.*suggested value: \(0x[0-9a-fA-F]*\).*/\1/p')
-  if [[ -z $fingerprint ]]; then
-    printf '%s\n' "$zig_output" >&2
-    printf 'Unable to generate the Zig package fingerprint.\n' >&2
-    exit 1
-  fi
-  sed -i "/^[[:space:]]*\.minimum_zig_version = /i\\    .fingerprint = $fingerprint, // Changing this has security and trust implications." build.zig.zon
-  "${zig_command[@]}"
-fi
-replace_literal "$old_description" "$nix_description" flake.nix
-replace_literal "$old_url" "$web_url" flake.nix
-replace_literal 'Copyright (c) 2026 trev' "Copyright (c) $year $git_name" LICENSE
-
-if [[ ${provider_host,,} == github.com ]]; then
-  is_github=true
-  raw_url="https://raw.githubusercontent.com/${repo_path}/refs/heads/main"
-  check_badge="[![check](${web_url}/actions/workflows/check.yaml/badge.svg?branch=main)](${web_url}/actions/workflows/check.yaml)"
-  vulnerable_badge="[![vulnerable](${web_url}/actions/workflows/vulnerable.yaml/badge.svg?branch=main)](${web_url}/actions/workflows/vulnerable.yaml)"
-else
-  is_github=false
-  raw_url="${web_url}/raw/branch/main"
-  check_badge="[![check](${web_url}/actions/workflows/check.yaml/badge.svg?branch=main&logo=forgejo&logoColor=%23bac2de&label=check&labelColor=%23313244)](${web_url}/actions?workflow=check.yaml)"
-  vulnerable_badge="[![vulnerable](${web_url}/actions/workflows/vulnerable.yaml/badge.svg?branch=main&logo=forgejo&logoColor=%23bac2de&label=vulnerable&labelColor=%23313244)](${web_url}/actions?workflow=vulnerable.yaml)"
-fi
-
-# The validated raw URL only needs colons and slashes double-encoded for Shields.
-encoded_lock_url="${raw_url}/flake.lock"
-encoded_lock_url=${encoded_lock_url//:/%253A}
-encoded_lock_url=${encoded_lock_url//\//%252F}
-nixpkgs_badge="[![nixpkgs](https://img.shields.io/endpoint?url=https%3A%2F%2Fnix-shield.trev.zip%2Fbadge%3Furl%3D${encoded_lock_url}%26input%3Dnixpkgs&logoColor=%23bac2de&labelColor=%23313244&color=%235277C3)](https://nixos.org/)"
-if $is_library; then
-  # Libraries show the minimum zig version they support.
-  language_badge="[![zig](<https://img.shields.io/badge/dynamic/regex?url=${raw_url}/build.zig.zon&search=.minimum_zig_version%20%3D%20%22(.*)%22&replace=%3E%3D%241&logo=zig&logoColor=%23bac2de&label=version&labelColor=%23313244&color=%23F7A41D>)](https://ziglang.org/)"
-else
-  language_badge="[![zig](<https://img.shields.io/badge/dynamic/regex?url=${raw_url}/build.zig.zon&search=.minimum_zig_version%20%3D%20%22(.*)%22&replace=%241&logo=zig&logoColor=%23bac2de&label=version&labelColor=%23313244&color=%23F7A41D>)](https://ziglang.org/)"
-fi
-
-if $is_library; then
-  readme_sections=$(sed -n '/^## contributing$/,$p' README.md)
-  printf -v readme_sections '## using\n\n```sh\nzig fetch --save git+%s.git\n```\n\nthen, in `build.zig`:\n\n```zig\nconst dep = b.dependency("%s", .{ .target = target, .optimize = optimize });\nexe.root_module.addImport("%s", dep.module("%s"));\n```\n\n%s' \
-    "$web_url" "$module" "$module" "$module" "$readme_sections"
-else
-  readme_sections=$(sed -n '/^## using$/,$p' README.md)
-  readme_sections=${readme_sections//"$old_url"/"$web_url"}
-  if $is_github; then
-    image="ghcr.io/${repo_path,,}:latest"
-  else
-    image="$host/${repo_path,,}:latest"
-  fi
-  readme_sections=${readme_sections//trev.zip\/template\/zig:latest/"$image"}
-fi
-
-{
-  printf '# %s\n\n' "$title"
-  printf '%s\n%s\n%s\n%s\n\n' "$check_badge" "$vulnerable_badge" "$nixpkgs_badge" "$language_badge"
-  printf '%s\n\n%s\n' "$description" "$readme_sections"
-} >README.md
-
-remove_checks() {
-  local key
-  for key in "$@"; do
-    sed -i "/^          $key = {$/,/^          };$/d" flake.nix
-  done
 }
 
+# Generates the package fingerprint, which Zig suggests when it's missing, and
+# checks that the project builds.
+set_fingerprint() {
+  local zig_command zig_output fingerprint
+  sed -i '/^[[:space:]]*\.fingerprint = /d' build.zig.zon
+  if command -v zig >/dev/null; then
+    zig_command=(zig build)
+  else
+    zig_command=(nix develop -c zig build)
+  fi
+  if zig_output=$("${zig_command[@]}" 2>&1); then
+    printf '%s\n' "$zig_output"
+  else
+    fingerprint=$(printf '%s\n' "$zig_output" | sed -n 's/.*suggested value: \(0x[0-9a-fA-F]*\).*/\1/p')
+    if [[ -z $fingerprint ]]; then
+      printf '%s\n' "$zig_output" >&2
+      die 'Unable to generate the Zig package fingerprint.'
+    fi
+    sed -i "/^[[:space:]]*\.minimum_zig_version = /i\\    .fingerprint = $fingerprint, // Changing this has security and trust implications." build.zig.zon
+    "${zig_command[@]}"
+  fi
+}
+
+# Replaces the README's title, badges and description, and points its usage
+# instructions at the project.
+write_readme() {
+  local raw_url check_badge vulnerable_badge encoded_lock_url nixpkgs_badge language_badge
+  local image readme_sections
+  if $is_github; then
+    raw_url="https://raw.githubusercontent.com/${repo_path}/refs/heads/main"
+    check_badge="[![check](${web_url}/actions/workflows/check.yaml/badge.svg?branch=main)](${web_url}/actions/workflows/check.yaml)"
+    vulnerable_badge="[![vulnerable](${web_url}/actions/workflows/vulnerable.yaml/badge.svg?branch=main)](${web_url}/actions/workflows/vulnerable.yaml)"
+  else
+    raw_url="${web_url}/raw/branch/main"
+    check_badge="[![check](${web_url}/actions/workflows/check.yaml/badge.svg?branch=main&logo=forgejo&logoColor=%23bac2de&label=check&labelColor=%23313244)](${web_url}/actions?workflow=check.yaml)"
+    vulnerable_badge="[![vulnerable](${web_url}/actions/workflows/vulnerable.yaml/badge.svg?branch=main&logo=forgejo&logoColor=%23bac2de&label=vulnerable&labelColor=%23313244)](${web_url}/actions?workflow=vulnerable.yaml)"
+  fi
+
+  # The validated raw URL only needs colons and slashes double-encoded for Shields.
+  encoded_lock_url="${raw_url}/flake.lock"
+  encoded_lock_url=${encoded_lock_url//:/%253A}
+  encoded_lock_url=${encoded_lock_url//\//%252F}
+  nixpkgs_badge="[![nixpkgs](https://img.shields.io/endpoint?url=https%3A%2F%2Fnix-shield.trev.zip%2Fbadge%3Furl%3D${encoded_lock_url}%26input%3Dnixpkgs&logoColor=%23bac2de&labelColor=%23313244&color=%235277C3)](https://nixos.org/)"
+  if $is_library; then
+    # Libraries show the minimum zig version they support.
+    language_badge="[![zig](<https://img.shields.io/badge/dynamic/regex?url=${raw_url}/build.zig.zon&search=.minimum_zig_version%20%3D%20%22(.*)%22&replace=%3E%3D%241&logo=zig&logoColor=%23bac2de&label=version&labelColor=%23313244&color=%23F7A41D>)](https://ziglang.org/)"
+  else
+    language_badge="[![zig](<https://img.shields.io/badge/dynamic/regex?url=${raw_url}/build.zig.zon&search=.minimum_zig_version%20%3D%20%22(.*)%22&replace=%241&logo=zig&logoColor=%23bac2de&label=version&labelColor=%23313244&color=%23F7A41D>)](https://ziglang.org/)"
+  fi
+
+  if $is_library; then
+    readme_sections=$(sed -n '/^## contributing$/,$p' README.md)
+    printf -v readme_sections '## using\n\n```sh\nzig fetch --save git+%s.git\n```\n\nthen, in `build.zig`:\n\n```zig\nconst dep = b.dependency("%s", .{ .target = target, .optimize = optimize });\nexe.root_module.addImport("%s", dep.module("%s"));\n```\n\n%s' \
+      "$web_url" "$module" "$module" "$module" "$readme_sections"
+  else
+    readme_sections=$(sed -n '/^## using$/,$p' README.md)
+    readme_sections=${readme_sections//"$old_url"/"$web_url"}
+    if $is_github; then
+      image="ghcr.io/${repo_path,,}:latest"
+    else
+      image="$host/${repo_path,,}:latest"
+    fi
+    readme_sections=${readme_sections//trev.zip\/template\/zig:latest/"$image"}
+  fi
+
+  {
+    printf '# %s\n\n' "$title"
+    printf '%s\n%s\n%s\n%s\n\n' "$check_badge" "$vulnerable_badge" "$nixpkgs_badge" "$language_badge"
+    printf '%s\n\n%s\n' "$description" "$readme_sections"
+  } >README.md
+}
+
+# Sets secondary_remote, secondary_repo_path and secondary_web_url from the URL
+# of the project's repository on the other provider.
 read_secondary_repository() {
-  local provider=$1 input remote_path authority secondary_provider_host scheme
-  read -r -p "$provider repository URL: " input
-  if [[ $input == *'?'* || $input == *'#'* ]]; then
-    printf 'Repository URL cannot contain a query string or fragment.\n' >&2
-    exit 1
-  fi
-  secondary_remote=$input
-  case $input in
-    http://* | https://*)
-      scheme=${input%%://*}
-      remote_path=${input#*://}
-      authority=${remote_path%%/*}
-      secondary_host=${authority##*@}
-      secondary_repo_path=${remote_path#*/}
-      secondary_repo_path=${secondary_repo_path%.git}
-      secondary_web_url="${scheme}://${secondary_host}/${secondary_repo_path}"
-      ;;
-    git@*:*)
-      secondary_host=${input#git@}
-      secondary_host=${secondary_host%%:*}
-      secondary_repo_path=${input#*:}
-      secondary_repo_path=${secondary_repo_path%.git}
-      secondary_web_url="https://${secondary_host}/${secondary_repo_path}"
-      ;;
-    ssh://*)
-      remote_path=${input#ssh://}
-      authority=${remote_path%%/*}
-      secondary_host=${authority##*@}
-      secondary_host=${secondary_host%%:*}
-      secondary_repo_path=${remote_path#*/}
-      secondary_repo_path=${secondary_repo_path%.git}
-      secondary_web_url="https://${secondary_host}/${secondary_repo_path}"
-      ;;
-    *)
-      printf 'Unsupported repository URL.\n' >&2
-      exit 1
-      ;;
-  esac
-  secondary_repo_path=${secondary_repo_path#/}
-  secondary_repo_path=${secondary_repo_path%.git}
-  secondary_provider_host=${secondary_host%%:*}
-  if [[ $secondary_repo_path != */* ]]; then
-    printf 'Repository URL must identify an owner and repository.\n' >&2
-    exit 1
-  fi
-  if [[ ! $secondary_host =~ ^[A-Za-z0-9.-]+(:[0-9]+)?$ || ! $secondary_repo_path =~ ^[A-Za-z0-9._/-]+$ ]]; then
-    printf 'Repository URL contains unsupported host or path characters.\n' >&2
-    exit 1
-  fi
+  local provider=$1 secondary_provider_host
+  read -r -p "$provider repository URL: " secondary_remote
+  parse_remote 'Repository URL' "$secondary_remote"
+  secondary_repo_path=$remote_repo_path
+  secondary_web_url=$remote_web_url
+  secondary_provider_host=${remote_host%%:*}
   if [[ $provider == GitHub && ${secondary_provider_host,,} != github.com ]]; then
-    printf 'GitHub repository URL must use github.com.\n' >&2
-    exit 1
+    die 'GitHub repository URL must use github.com.'
   fi
   if [[ $provider == Forgejo && ${secondary_provider_host,,} == github.com ]]; then
-    printf 'Forgejo repository URL cannot use github.com.\n' >&2
-    exit 1
+    die 'Forgejo repository URL cannot use github.com.'
   fi
 }
 
-if [[ ! -d .github ]]; then
-  remove_checks actions-gh renovate-gh
-fi
-if [[ ! -d .forgejo ]]; then
-  remove_checks actions-fj renovate-fj
-fi
-
-if $is_github; then
-  if [[ -f .github/renovate.jsonc ]]; then
-    replace_literal "spotdemo4/$old_slug" "$repo_path" .github/renovate.jsonc
+# Points the GitHub and Forgejo configuration at the project's repositories, or
+# removes it.
+configure_providers() {
+  local reply
+  if [[ ! -d .github ]]; then
+    remove_checks actions-gh renovate-gh
   fi
-  if [[ -d .forgejo ]]; then
-    read -r -p 'GitHub origin detected. Delete .forgejo? [y/N] ' reply || reply=
-    if [[ $reply =~ ^[Yy]$ ]]; then
-      rm -rf .forgejo
-      remove_checks actions-fj renovate-fj
-    else
-      read_secondary_repository Forgejo
-      "${new_git[@]}" remote add forgejo "$secondary_remote"
-      replace_literal 'template/zig' "$secondary_repo_path" .forgejo/renovate.jsonc
-      replace_literal 'https://trev.zip/api/v1' "${secondary_web_url%/$secondary_repo_path}/api/v1" .forgejo/renovate.jsonc
+  if [[ ! -d .forgejo ]]; then
+    remove_checks actions-fj renovate-fj
+  fi
+
+  if $is_github; then
+    if [[ -f .github/renovate.jsonc ]]; then
+      replace_literal "spotdemo4/$old_slug" "$repo_path" .github/renovate.jsonc
+    fi
+    if [[ -d .forgejo ]]; then
+      read -r -p 'GitHub origin detected. Delete .forgejo? [y/N] ' reply || reply=
+      if [[ $reply =~ ^[Yy]$ ]]; then
+        rm -rf .forgejo
+        remove_checks actions-fj renovate-fj
+      else
+        read_secondary_repository Forgejo
+        "${new_git[@]}" remote add forgejo "$secondary_remote"
+        replace_literal 'template/zig' "$secondary_repo_path" .forgejo/renovate.jsonc
+        replace_literal 'https://trev.zip/api/v1' "${secondary_web_url%/"$secondary_repo_path"}/api/v1" .forgejo/renovate.jsonc
+      fi
+    fi
+  else
+    if [[ -f .forgejo/renovate.jsonc ]]; then
+      replace_literal 'template/zig' "$repo_path" .forgejo/renovate.jsonc
+      replace_literal 'https://trev.zip/api/v1' "${web_url%/"$repo_path"}/api/v1" .forgejo/renovate.jsonc
+    fi
+    if [[ -d .github ]]; then
+      read -r -p 'Non-GitHub origin detected. Delete .github? [y/N] ' reply || reply=
+      if [[ $reply =~ ^[Yy]$ ]]; then
+        rm -rf .github
+        remove_checks actions-gh renovate-gh
+      else
+        read_secondary_repository GitHub
+        "${new_git[@]}" remote add github "$secondary_remote"
+        replace_literal "spotdemo4/$old_slug" "$secondary_repo_path" .github/renovate.jsonc
+      fi
     fi
   fi
-else
-  if [[ -f .forgejo/renovate.jsonc ]]; then
-    replace_literal 'template/zig' "$repo_path" .forgejo/renovate.jsonc
-    replace_literal 'https://trev.zip/api/v1' "${web_url%/$repo_path}/api/v1" .forgejo/renovate.jsonc
+}
+
+configure_editors() {
+  local reply
+  read -r -p 'Are you using Zed? [Y/n] ' reply || reply=
+  if [[ $reply =~ ^[Nn]([Oo])?$ ]]; then
+    rm -rf .zed
   fi
-  if [[ -d .github ]]; then
-    read -r -p 'Non-GitHub origin detected. Delete .github? [y/N] ' reply || reply=
-    if [[ $reply =~ ^[Yy]$ ]]; then
-      rm -rf .github
-      remove_checks actions-gh renovate-gh
-    else
-      read_secondary_repository GitHub
-      "${new_git[@]}" remote add github "$secondary_remote"
-      replace_literal "spotdemo4/$old_slug" "$secondary_repo_path" .github/renovate.jsonc
+
+  read -r -p 'Are you using VS Code? [Y/n] ' reply || reply=
+  if [[ $reply =~ ^[Nn]([Oo])?$ ]]; then
+    rm -rf .vscode
+  fi
+}
+
+# Formats the project and commits it as the new repository's root commit.
+commit_new_repository() {
+  local url file existing_tracked=()
+  "${new_git[@]}" config core.bare false
+  "${new_git[@]}" config user.name "$git_name"
+  "${new_git[@]}" config user.email "$git_email"
+  "${new_git[@]}" remote add origin "${remote_urls[0]}"
+  for url in "${remote_urls[@]:1}"; do
+    "${new_git[@]}" remote set-url --add origin "$url"
+  done
+  for url in "${push_urls[@]}"; do
+    "${new_git[@]}" remote set-url --add --push origin "$url"
+  done
+  nix fmt
+
+  "${new_git[@]}" add -A
+  for file in "${tracked_files[@]}"; do
+    if [[ -e $file || -L $file ]]; then
+      existing_tracked+=("$file")
     fi
+  done
+  "${new_git[@]}" add -f -- "${existing_tracked[@]}"
+  "${new_git[@]}" rm --cached --quiet -- init.sh
+  git_as_user "${new_git[@]}" -c commit.gpgsign=false -c core.hooksPath=/dev/null commit --quiet --message 'chore: initialize project'
+}
+
+# Replaces .git with the new repository and removes the initializer.
+activate_new_repository() {
+  swap_started=true
+  mv .git "$old_git_dir"
+  if ! rm "$script_path"; then
+    mv "$old_git_dir" .git
+    die 'Unable to remove init.sh.'
   fi
-fi
-
-read -r -p 'Are you using Zed? [Y/n] ' reply || reply=
-if [[ $reply =~ ^[Nn]([Oo])?$ ]]; then
-  rm -rf .zed
-fi
-
-read -r -p 'Are you using VS Code? [Y/n] ' reply || reply=
-if [[ $reply =~ ^[Nn]([Oo])?$ ]]; then
-  rm -rf .vscode
-fi
-
-"${new_git[@]}" config core.bare false
-"${new_git[@]}" config user.name "$git_name"
-"${new_git[@]}" config user.email "$git_email"
-"${new_git[@]}" remote add origin "${remote_urls[0]}"
-for url in "${remote_urls[@]:1}"; do
-  "${new_git[@]}" remote set-url --add origin "$url"
-done
-for url in "${push_urls[@]}"; do
-  "${new_git[@]}" remote set-url --add --push origin "$url"
-done
-nix fmt
-
-"${new_git[@]}" add -A
-existing_tracked=()
-for file in "${tracked_files[@]}"; do
-  if [[ -e $file || -L $file ]]; then
-    existing_tracked+=("$file")
+  if ! mv "$new_git_dir" .git; then
+    mv "$old_git_dir" .git
+    git restore -- init.sh
+    die 'Unable to activate the new Git repository.'
   fi
-done
-"${new_git[@]}" add -f -- "${existing_tracked[@]}"
-"${new_git[@]}" rm --cached --quiet -- init.sh
-env \
-  GIT_AUTHOR_NAME="$git_name" \
-  GIT_AUTHOR_EMAIL="$git_email" \
-  GIT_COMMITTER_NAME="$git_name" \
-  GIT_COMMITTER_EMAIL="$git_email" \
-  "${new_git[@]}" -c commit.gpgsign=false -c core.hooksPath=/dev/null commit --quiet --message 'chore: initialize project'
+  swap_started=false
+  rm -rf "$old_git_dir"
+  trap - EXIT INT TERM HUP
+}
 
-swap_started=true
-mv .git "$old_git_dir"
-if ! rm "$script_path"; then
-  mv "$old_git_dir" .git
-  printf 'Unable to remove init.sh.\n' >&2
-  exit 1
-fi
-if ! mv "$new_git_dir" .git; then
-  mv "$old_git_dir" .git
-  git restore -- init.sh
-  printf 'Unable to activate the new Git repository.\n' >&2
-  exit 1
-fi
-swap_started=false
-rm -rf "$old_git_dir"
-trap - EXIT INT TERM HUP
+main() {
+  if [[ $# -ne 2 || -z $1 || -z $2 ]]; then
+    die "Usage: ${0##*/} \"Title\" \"Description\""
+  fi
+  title=$1
+  description=$2
 
-printf 'Initialized %s (%s) from %s with a new root commit.\n' "$title" "$version" "$web_url"
+  check_repository
+  check_project
+  check_worktree
+  start_new_repository
+  template_commit=$(find_template_commit)
+
+  read -r -p 'Is this project a library? [y/N] ' reply || reply=
+  is_library=false
+  if [[ $reply =~ ^[Yy]([Ee][Ss])?$ ]]; then
+    is_library=true
+  fi
+
+  changes_started=true
+  apply_metadata
+  if $is_library; then
+    make_library
+  fi
+  set_fingerprint
+  write_readme
+  configure_providers
+  configure_editors
+  commit_new_repository
+  activate_new_repository
+
+  printf 'Initialized %s (%s) from %s with a new root commit.\n' "$title" "$version" "$web_url"
+}
+
+# init.test.sh sources the script to test its functions.
+if [[ ${BASH_SOURCE[0]} == "$0" ]]; then
+  main "$@"
+fi

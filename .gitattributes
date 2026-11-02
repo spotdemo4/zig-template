@@ -3,6 +3,7 @@
 
 # Linguist: exclude template initializer from language stats
 /init.sh -linguist-detectable
+/init.test.sh -linguist-detectable
 
 # Linguist: lock file is generated
 flake.lock linguist-generated=true
