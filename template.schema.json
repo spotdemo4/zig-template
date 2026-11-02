@@ -17,6 +17,11 @@
       "description": "Latest template commit whose changes have been applied",
       "type": "string",
       "pattern": "^([0-9a-f]{40}|[0-9a-f]{64})$"
+    },
+    "library": {
+      "description": "Whether the project is a library, which has no program, container image or release artifacts",
+      "type": "boolean",
+      "default": false
     }
   },
   "required": ["url", "commit"],

@@ -214,12 +214,23 @@ if GIT_TERMINAL_PROMPT=0 git fetch --quiet --no-tags "$old_url" main 2>/dev/null
   done < <(git log --format='%T' HEAD)
 fi
 
+read -r -p 'Is this project a library? [y/N] ' reply || reply=
+if [[ $reply =~ ^[Yy]([Ee][Ss])?$ ]]; then
+  is_library=true
+else
+  is_library=false
+fi
+
 changes_started=true
 rm template.schema.json
 sed -i '/^        # nix flake init /,/^        };$/d' flake.nix
 if [[ -n $template_commit ]]; then
-  printf '{ "$schema": "%s", "url": "%s", "commit": "%s" }\n' \
-    "$old_url/raw/branch/main/template.schema.json" "$old_url" "$template_commit" >.template.json
+  library_field=
+  if $is_library; then
+    library_field=', "library": true'
+  fi
+  printf '{ "$schema": "%s", "url": "%s", "commit": "%s"%s }\n' \
+    "$old_url/raw/branch/main/template.schema.json" "$old_url" "$template_commit" "$library_field" >.template.json
 else
   printf 'Warning: unable to find the template commit; .template.json was not created.\n' >&2
 fi
@@ -228,6 +239,70 @@ replace_literal "$old_slug" "$slug" flake.nix
 replace_literal "$old_module" "$module" build.zig build.zig.zon src/main.zig flake.nix
 sed -i -E "s@^(    \.version = \")[^\"]*@\1$version@" build.zig.zon
 sed -i -E "/^[[:space:]]*pname = \"$slug\";$/,/^[[:space:]]*version = /s@^([[:space:]]*version = \")[^\"]*@\1$version@" flake.nix
+if $is_library; then
+  # A library starts without the program.
+  rm src/main.zig
+  cat >build.zig <<EOF
+const std = @import("std");
+
+pub fn build(b: *std.Build) void {
+    const target = b.standardTargetOptions(.{});
+    const optimize = b.standardOptimizeOption(.{});
+
+    // Users of this package import the module by this name.
+    const mod = b.addModule("$module", .{
+        .root_source_file = b.path("src/root.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+
+    const mod_tests = b.addTest(.{
+        .root_module = mod,
+    });
+    const run_mod_tests = b.addRunArtifact(mod_tests);
+
+    const test_step = b.step("test", "Run tests");
+    test_step.dependOn(&run_mod_tests.step);
+}
+EOF
+  cat >src/root.zig <<EOF
+//! $module says hello.
+const std = @import("std");
+
+/// Returns a greeting for name. The caller owns the returned memory.
+pub fn hello(allocator: std.mem.Allocator, name: []const u8) std.mem.Allocator.Error![]u8 {
+    return std.fmt.allocPrint(allocator, "Hello, {s}!", .{name});
+}
+
+test "hello" {
+    const greeting = try hello(std.testing.allocator, "world");
+    defer std.testing.allocator.free(greeting);
+    try std.testing.expectEqualStrings("Hello, world!", greeting);
+}
+EOF
+
+  # There's no program to run or put in an image, and the package has no
+  # binaries to install.
+  sed -i "/^              doInstallCheck = true;\$/,/^              '';\$/d" flake.nix
+  sed -i -E '/^                (mainProgram|downloadPage) = /d' flake.nix
+  sed -i 's@^\( *\)cp -R zig-out "$out"$@\1mkdir "$out"@' flake.nix
+  sed -i '/^        # nix build #images/,/^        };$/d' flake.nix
+  sed -i '/^### run$/,/^### format$/{/^### format$/!d}' CONTRIBUTING.md
+
+  # Zig users fetch the library's source, so there are no artifacts or images
+  # to release.
+  for workflow in .github/workflows/release.yaml .forgejo/workflows/release.yaml; do
+    if [[ -f $workflow ]]; then
+      sed -i -E '/^            (packages|images)\.x86_64-linux\.default\./d; s/^(          PACKAGES:) \|$/\1 packages.x86_64-linux.default/' "$workflow"
+    fi
+  done
+  if [[ -f .github/workflows/release.yaml ]]; then
+    sed -i '/^      packages: write$/d' .github/workflows/release.yaml
+  fi
+  if [[ -f .forgejo/workflows/release.yaml ]]; then
+    sed -i -E '/^          (CONTAINER_REGISTRY_PASSWORD|DELETE_OLD_RELEASE_ARTIFACTS): /d' .forgejo/workflows/release.yaml
+  fi
+fi
 sed -i '/^[[:space:]]*\.fingerprint = /d' build.zig.zon
 if command -v zig >/dev/null; then
   zig_command=(zig build)
@@ -267,16 +342,27 @@ encoded_lock_url="${raw_url}/flake.lock"
 encoded_lock_url=${encoded_lock_url//:/%253A}
 encoded_lock_url=${encoded_lock_url//\//%252F}
 nixpkgs_badge="[![nixpkgs](https://img.shields.io/endpoint?url=https%3A%2F%2Fnix-shield.trev.zip%2Fbadge%3Furl%3D${encoded_lock_url}%26input%3Dnixpkgs&logoColor=%23bac2de&labelColor=%23313244&color=%235277C3)](https://nixos.org/)"
-language_badge="[![zig](<https://img.shields.io/badge/dynamic/regex?url=${raw_url}/build.zig.zon&search=.minimum_zig_version%20%3D%20%22(.*)%22&replace=%241&logo=zig&logoColor=%23bac2de&label=version&labelColor=%23313244&color=%23F7A41D>)](https://ziglang.org/)"
-
-readme_sections=$(sed -n '/^## using$/,$p' README.md)
-readme_sections=${readme_sections//"$old_url"/"$web_url"}
-if $is_github; then
-  image="ghcr.io/${repo_path,,}:latest"
+if $is_library; then
+  # Libraries show the minimum zig version they support.
+  language_badge="[![zig](<https://img.shields.io/badge/dynamic/regex?url=${raw_url}/build.zig.zon&search=.minimum_zig_version%20%3D%20%22(.*)%22&replace=%3E%3D%241&logo=zig&logoColor=%23bac2de&label=version&labelColor=%23313244&color=%23F7A41D>)](https://ziglang.org/)"
 else
-  image="$host/${repo_path,,}:latest"
+  language_badge="[![zig](<https://img.shields.io/badge/dynamic/regex?url=${raw_url}/build.zig.zon&search=.minimum_zig_version%20%3D%20%22(.*)%22&replace=%241&logo=zig&logoColor=%23bac2de&label=version&labelColor=%23313244&color=%23F7A41D>)](https://ziglang.org/)"
 fi
-readme_sections=${readme_sections//trev.zip\/template\/zig:latest/"$image"}
+
+if $is_library; then
+  readme_sections=$(sed -n '/^## contributing$/,$p' README.md)
+  printf -v readme_sections '## using\n\n```sh\nzig fetch --save git+%s.git\n```\n\nthen, in `build.zig`:\n\n```zig\nconst dep = b.dependency("%s", .{ .target = target, .optimize = optimize });\nexe.root_module.addImport("%s", dep.module("%s"));\n```\n\n%s' \
+    "$web_url" "$module" "$module" "$module" "$readme_sections"
+else
+  readme_sections=$(sed -n '/^## using$/,$p' README.md)
+  readme_sections=${readme_sections//"$old_url"/"$web_url"}
+  if $is_github; then
+    image="ghcr.io/${repo_path,,}:latest"
+  else
+    image="$host/${repo_path,,}:latest"
+  fi
+  readme_sections=${readme_sections//trev.zip\/template\/zig:latest/"$image"}
+fi
 
 {
   printf '# %s\n\n' "$title"
