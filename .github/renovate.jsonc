@@ -10,6 +10,7 @@
   // repository
   "extends": ["config:recommended"],
   "addLabels": ["dep"],
+  "prHourlyLimit": 0,
   "nix": {
     "enabled": true
   },
