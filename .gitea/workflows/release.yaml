@@ -1,0 +1,46 @@
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    runs-on: ubuntu-26.04
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Initialize
+        uses: spotdemo4/nix-init@51e2e49aaf181feb402ad2bcf9089273f5f4ad85 # v1.74.0
+        with:
+          github_token: ${{ secrets.GH_TOKEN }}
+          niks3_url: https://niks3.trev.zip
+          token: ${{ secrets.DOCTOR_TOKEN }}
+          fetch_depth: 0
+          shell: release
+
+      - name: Release to Gitea
+        run: flake-release
+        env:
+          GIT_TOKEN: ${{ secrets.DOCTOR_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+          CONTAINER_REGISTRY_PASSWORD: ${{ secrets.PACKAGE_TOKEN }}
+          DELETE_OLD_RELEASE_ARTIFACTS: 2
+          PACKAGES: |
+            packages.x86_64-linux.default.x86_64-unknown-linux-musl
+            packages.x86_64-linux.default.aarch64-unknown-linux-musl
+            packages.x86_64-linux.default.armv7l-unknown-linux-musleabihf
+            packages.x86_64-linux.default.x86_64-w64-mingw32
+            packages.x86_64-linux.default.arm64-apple-darwin
+            images.x86_64-linux.default.x86_64-unknown-linux-gnu
+            images.x86_64-linux.default.aarch64-unknown-linux-gnu
+            images.x86_64-linux.default.armv7l-unknown-linux-gnueabihf

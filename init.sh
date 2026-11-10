@@ -16,6 +16,11 @@ old_maintainer='maintainers.spotdemo4'
 old_maintainer_email=me@trev.xyz
 version=0.0.1
 
+# Forges, by the name of their configuration directory and flake check suffix
+declare -A forge_names=([github]=GitHub [gitea]=Gitea [forgejo]=Forgejo)
+declare -A forge_checks=([github]=gh [gitea]=gt [forgejo]=fj)
+forges=(github gitea forgejo)
+
 die() {
   printf '%s\n' "$1" >&2
   exit 1
@@ -161,6 +166,40 @@ check_repository() {
   fi
 }
 
+# Checks that a repository URL's host suits its forge: GitHub repositories are
+# on github.com, and Gitea and Forgejo repositories are anywhere else.
+check_forge_host() {
+  local label=$1 forge=$2 host=${3%%:*}
+  if [[ $forge == github && ${host,,} != github.com ]]; then
+    die "$label must use github.com."
+  fi
+  if [[ $forge != github && ${host,,} == github.com ]]; then
+    die "$label cannot use github.com."
+  fi
+}
+
+# Sets forge and is_github from the forge the user says hosts origin. The
+# default is GitHub for github.com, and Forgejo for any other host.
+read_forge() {
+  local default=forgejo reply
+  if [[ ${provider_host,,} == github.com ]]; then
+    default=github
+  fi
+  read -r -p "Which forge hosts origin? [github/gitea/forgejo] ($default) " reply || reply=
+  forge=${reply,,}
+  forge=${forge:-$default}
+  case $forge in
+    github | gitea | forgejo) ;;
+    *) die 'Forge must be github, gitea or forgejo.' ;;
+  esac
+  check_forge_host "${forge_names[$forge]} origin URL" "$forge" "$host"
+  if [[ $forge == github ]]; then
+    is_github=true
+  else
+    is_github=false
+  fi
+}
+
 # Checks the title and description, and reads the project's location from the
 # origin remote.
 check_project() {
@@ -176,11 +215,7 @@ check_project() {
   repo_path=$remote_repo_path
   web_url=$remote_web_url
   provider_host=${host%%:*}
-  if [[ ${provider_host,,} == github.com ]]; then
-    is_github=true
-  else
-    is_github=false
-  fi
+  read_forge
   mapfile -t remote_urls < <(git config --get-all remote.origin.url)
   mapfile -t push_urls < <(git config --get-all remote.origin.pushurl || true)
 }
@@ -336,7 +371,7 @@ EOF
 
   # Zig users fetch the library's source, so there are no artifacts or images
   # to release.
-  for workflow in .github/workflows/release.yaml .forgejo/workflows/release.yaml; do
+  for workflow in .github/workflows/release.yaml .gitea/workflows/release.yaml .forgejo/workflows/release.yaml; do
     if [[ -f $workflow ]]; then
       sed -i -E '/^            (packages|images)\.x86_64-linux\.default\./d; s/^(          PACKAGES:) \|$/\1 packages.x86_64-linux.default/' "$workflow"
     fi
@@ -344,9 +379,11 @@ EOF
   if [[ -f .github/workflows/release.yaml ]]; then
     sed -i '/^      packages: write$/d' .github/workflows/release.yaml
   fi
-  if [[ -f .forgejo/workflows/release.yaml ]]; then
-    sed -i -E '/^          (CONTAINER_REGISTRY_PASSWORD|DELETE_OLD_RELEASE_ARTIFACTS): /d' .forgejo/workflows/release.yaml
-  fi
+  for workflow in .gitea/workflows/release.yaml .forgejo/workflows/release.yaml; do
+    if [[ -f $workflow ]]; then
+      sed -i -E '/^          (CONTAINER_REGISTRY_PASSWORD|DELETE_OLD_RELEASE_ARTIFACTS): /d' "$workflow"
+    fi
+  done
 }
 
 # Generates the package fingerprint, which Zig suggests when it's missing, and
@@ -383,8 +420,8 @@ write_readme() {
     vulnerable_badge="[![vulnerable](${web_url}/actions/workflows/vulnerable.yaml/badge.svg?branch=main)](${web_url}/actions/workflows/vulnerable.yaml)"
   else
     raw_url="${web_url}/raw/branch/main"
-    check_badge="[![check](${web_url}/actions/workflows/check.yaml/badge.svg?branch=main&logo=forgejo&logoColor=%23bac2de&label=check&labelColor=%23313244)](${web_url}/actions?workflow=check.yaml)"
-    vulnerable_badge="[![vulnerable](${web_url}/actions/workflows/vulnerable.yaml/badge.svg?branch=main&logo=forgejo&logoColor=%23bac2de&label=vulnerable&labelColor=%23313244)](${web_url}/actions?workflow=vulnerable.yaml)"
+    check_badge="[![check](${web_url}/actions/workflows/check.yaml/badge.svg?branch=main&logo=${forge}&logoColor=%23bac2de&label=check&labelColor=%23313244)](${web_url}/actions?workflow=check.yaml)"
+    vulnerable_badge="[![vulnerable](${web_url}/actions/workflows/vulnerable.yaml/badge.svg?branch=main&logo=${forge}&logoColor=%23bac2de&label=vulnerable&labelColor=%23313244)](${web_url}/actions?workflow=vulnerable.yaml)"
   fi
 
   # The validated raw URL only needs colons and slashes double-encoded for Shields.
@@ -422,66 +459,60 @@ write_readme() {
 }
 
 # Sets secondary_remote, secondary_repo_path and secondary_web_url from the URL
-# of the project's repository on the other provider.
+# of the project's repository on another forge.
 read_secondary_repository() {
-  local provider=$1 secondary_provider_host
-  read -r -p "$provider repository URL: " secondary_remote
+  local forge=$1 label="${forge_names[$1]} repository URL"
+  read -r -p "$label: " secondary_remote
   parse_remote 'Repository URL' "$secondary_remote"
+  check_forge_host "$label" "$forge" "$remote_host"
   secondary_repo_path=$remote_repo_path
   secondary_web_url=$remote_web_url
-  secondary_provider_host=${remote_host%%:*}
-  if [[ $provider == GitHub && ${secondary_provider_host,,} != github.com ]]; then
-    die 'GitHub repository URL must use github.com.'
+}
+
+# Points a forge's Renovate configuration at a repository.
+configure_renovate() {
+  local forge=$1 repo_path=$2 web_url=$3 file=.$1/renovate.jsonc
+  if [[ ! -f $file ]]; then
+    return
   fi
-  if [[ $provider == Forgejo && ${secondary_provider_host,,} == github.com ]]; then
-    die 'Forgejo repository URL cannot use github.com.'
+  if [[ $forge == github ]]; then
+    replace_literal "spotdemo4/$old_slug" "$repo_path" "$file"
+  else
+    replace_literal 'template/zig' "$repo_path" "$file"
+    replace_literal 'https://trev.zip/api/v1' "${web_url%/"$repo_path"}/api/v1" "$file"
   fi
 }
 
-# Points the GitHub and Forgejo configuration at the project's repositories, or
-# removes it.
-configure_providers() {
-  local reply
-  if [[ ! -d .github ]]; then
-    remove_checks actions-gh renovate-gh
-  fi
-  if [[ ! -d .forgejo ]]; then
-    remove_checks actions-fj renovate-fj
-  fi
+# Removes a forge's configuration and its flake checks.
+remove_forge() {
+  rm -rf ".$1"
+  remove_checks "actions-${forge_checks[$1]}" "renovate-${forge_checks[$1]}"
+}
 
-  if $is_github; then
-    if [[ -f .github/renovate.jsonc ]]; then
-      replace_literal "spotdemo4/$old_slug" "$repo_path" .github/renovate.jsonc
+# Points the origin forge's configuration at the project's repository, and
+# keeps each other forge's configuration only if the project also uses it.
+configure_providers() {
+  local other reply
+  for other in "${forges[@]}"; do
+    if [[ ! -d .$other ]]; then
+      remove_forge "$other"
     fi
-    if [[ -d .forgejo ]]; then
-      read -r -p 'GitHub origin detected. Delete .forgejo? [y/N] ' reply || reply=
-      if [[ $reply =~ ^[Yy]$ ]]; then
-        rm -rf .forgejo
-        remove_checks actions-fj renovate-fj
-      else
-        read_secondary_repository Forgejo
-        "${new_git[@]}" remote add forgejo "$secondary_remote"
-        replace_literal 'template/zig' "$secondary_repo_path" .forgejo/renovate.jsonc
-        replace_literal 'https://trev.zip/api/v1' "${secondary_web_url%/"$secondary_repo_path"}/api/v1" .forgejo/renovate.jsonc
-      fi
+  done
+  configure_renovate "$forge" "$repo_path" "$web_url"
+
+  for other in "${forges[@]}"; do
+    if [[ $other == "$forge" || ! -d .$other ]]; then
+      continue
     fi
-  else
-    if [[ -f .forgejo/renovate.jsonc ]]; then
-      replace_literal 'template/zig' "$repo_path" .forgejo/renovate.jsonc
-      replace_literal 'https://trev.zip/api/v1' "${web_url%/"$repo_path"}/api/v1" .forgejo/renovate.jsonc
+    read -r -p "Also use ${forge_names[$other]}? [y/N] " reply || reply=
+    if [[ $reply =~ ^[Yy]([Ee][Ss])?$ ]]; then
+      read_secondary_repository "$other"
+      "${new_git[@]}" remote add "$other" "$secondary_remote"
+      configure_renovate "$other" "$secondary_repo_path" "$secondary_web_url"
+    else
+      remove_forge "$other"
     fi
-    if [[ -d .github ]]; then
-      read -r -p 'Non-GitHub origin detected. Delete .github? [y/N] ' reply || reply=
-      if [[ $reply =~ ^[Yy]$ ]]; then
-        rm -rf .github
-        remove_checks actions-gh renovate-gh
-      else
-        read_secondary_repository GitHub
-        "${new_git[@]}" remote add github "$secondary_remote"
-        replace_literal "spotdemo4/$old_slug" "$secondary_repo_path" .github/renovate.jsonc
-      fi
-    fi
-  fi
+  done
 }
 
 configure_editors() {

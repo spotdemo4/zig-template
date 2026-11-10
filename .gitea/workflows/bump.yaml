@@ -1,0 +1,44 @@
+name: bump
+
+on:
+  schedule:
+    - cron: "0 22 * * 1-5" # every weekday at 22:00 UTC
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "force"
+        required: false
+        type: choice
+        default: "true"
+        options:
+          - "true"
+          - "false"
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  bump:
+    runs-on: ubuntu-26.04
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Initialize
+        uses: spotdemo4/nix-init@51e2e49aaf181feb402ad2bcf9089273f5f4ad85 # v1.74.0
+        with:
+          token: ${{ secrets.DOCTOR_TOKEN }}
+          github_token: ${{ secrets.GH_TOKEN }}
+          niks3_url: https://niks3.trev.zip
+          fetch_depth: 0
+          shell: bump
+
+      - name: Bump
+        run: bumper
+        env:
+          GITHUB_TOKEN: ${{ secrets.DOCTOR_TOKEN }}
+          FORCE: ${{ inputs.force }}
