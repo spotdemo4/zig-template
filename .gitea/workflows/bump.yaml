@@ -29,7 +29,7 @@ jobs:
       id-token: write
     steps:
       - name: Initialize
-        uses: spotdemo4/nix-init@51e2e49aaf181feb402ad2bcf9089273f5f4ad85 # v1.74.0
+        uses: spotdemo4/nix-init@b66e42aabfd321ffd40584fb31adbfc3ea9c8f11 # v1.77.0
         with:
           token: ${{ secrets.DOCTOR_TOKEN }}
           github_token: ${{ secrets.GH_TOKEN }}
