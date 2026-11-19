@@ -221,8 +221,6 @@
 
         # nix flake check
         checks = pkgs.mkChecks {
-          inherit (self.packages.${system}) default;
-
           zig-lint = {
             root = ./.;
             filter = file: file.hasExt "zig";
