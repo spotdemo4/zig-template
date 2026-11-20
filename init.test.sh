@@ -140,8 +140,9 @@ test_application() (
   git add -A
   git commit --quiet --message 'Initial commit'
   # The build sandbox has no /usr/bin/env for the shebang
-  # GitHub (detected), application, no Gitea, Forgejo mirror, Zed, VS Code
-  printf '%s\n' '' n n y https://git.example.com/octo/hello-world '' '' | bash ./init.sh 'Hello World' "$description"
+  # GitHub (detected), application, no Gitea, Forgejo mirror, Zed, VS Code,
+  # Claude Code
+  printf '%s\n' '' n n y https://git.example.com/octo/hello-world '' '' '' | bash ./init.sh 'Hello World' "$description"
 
   assert_initialized hello-world hello_world test@example.com
   assert_eq "$(jq -r .library .template.json)" null '.template.json library'
@@ -165,6 +166,8 @@ test_application() (
   assert_lacks README.md 'zig fetch' 'replace=%3E%3D%241'
   assert_contains build.zig 'b.addExecutable' '.name = "hello_world",'
   [[ -f src/main.zig && -d .zed && -d .vscode ]] || fail 'application files are missing'
+  assert_eq "$(git ls-files .claude)" .claude/skills 'tracked .claude files'
+  assert_eq "$(readlink .claude/skills)" ../.agents/skills '.claude/skills target'
   zig build test
 )
 
@@ -176,14 +179,16 @@ test_library() (
   chmod -x init.sh
   # The template's author keeps their maintainer entry
   git config user.email Me@Trev.xyz
-  # Forgejo (detected), library, no GitHub, no Gitea, no Zed, no VS Code
-  printf '%s\n' '' y n n n n | bash init.sh 'Hello Lib' 'Says hello'
+  # Forgejo (detected), library, no GitHub, no Gitea, no Zed, no VS Code, no
+  # Claude Code
+  printf '%s\n' '' y n n n n n | bash init.sh 'Hello Lib' 'Says hello'
 
   assert_initialized hello-lib hello_lib Me@Trev.xyz
   assert_eq "$(jq -r .library .template.json)" true '.template.json library'
   assert_contains flake.nix "maintainers = [ $old_maintainer ];"
   assert_eq "$(git remote)" origin remotes
-  assert_missing src/main.zig .github .gitea .zed .vscode
+  assert_missing src/main.zig .github .gitea .zed .vscode .claude
+  [[ -f .agents/skills/template-sync/SKILL.md ]] || fail '.agents/skills is missing'
   assert_contains README.md \
     'zig fetch --save git+https://git.example.com/octo/hello-lib.git' \
     'b.dependency("hello_lib"' 'replace=%3E%3D%241'
@@ -205,13 +210,14 @@ test_gitea() (
   cd "$project"
   git add -A
   git commit --quiet --message 'Initial commit'
-  # Gitea, library, GitHub mirror, no Forgejo, no Zed, no VS Code
-  printf '%s\n' Gitea y y git@github.com:octo/hello-mirror.git n n n | bash ./init.sh 'Hello Gitea' 'Says hello'
+  # Gitea, library, GitHub mirror, no Forgejo, no Zed, no VS Code, Claude Code
+  printf '%s\n' Gitea y y git@github.com:octo/hello-mirror.git n n n y | bash ./init.sh 'Hello Gitea' 'Says hello'
 
   assert_initialized hello-gitea hello_gitea test@example.com
   assert_eq "$(git remote)" $'github\norigin' remotes
   assert_eq "$(git remote get-url github)" git@github.com:octo/hello-mirror.git 'github remote'
   assert_missing .forgejo .zed .vscode
+  [[ -L .claude/skills ]] || fail '.claude/skills is missing'
   assert_contains README.md \
     'https://gitea.example.com/octo/hello-gitea/actions?workflow=check.yaml' \
     'logo=gitea' \
