@@ -1,0 +1,21 @@
+# https://tangled.org/docs/spindles/workflows/
+
+when:
+  - event: ["push", "pull_request"]
+    branch: ["main"]
+  - event: ["manual"]
+
+engine: microvm
+image: nixos
+
+substituters:
+  https://nix.trev.zip: "trev:I39N/EsnHkvfmsbx8RUW+ia5dOzojTQNCTzKYij1chU="
+
+steps:
+  - name: Check
+    command: |
+      # the optional GH_TOKEN secret raises GitHub's rate limit for flake inputs
+      if [[ -n ${GH_TOKEN:-} ]]; then
+        export NIX_CONFIG="access-tokens = github.com=${GH_TOKEN}"
+      fi
+      nix flake check

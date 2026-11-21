@@ -16,10 +16,11 @@ old_maintainer='maintainers.spotdemo4'
 old_maintainer_email=me@trev.xyz
 version=0.0.1
 
-# Forges, by the name of their configuration directory and flake check suffix
-declare -A forge_names=([github]=GitHub [gitea]=Gitea [forgejo]=Forgejo)
+# Forges, by the name of their configuration directory and flake check suffix.
+# Tangled has no flake checks, and can't host origin.
+declare -A forge_names=([github]=GitHub [gitea]=Gitea [forgejo]=Forgejo [tangled]=Tangled)
 declare -A forge_checks=([github]=gh [gitea]=gt [forgejo]=fj)
-forges=(github gitea forgejo)
+forges=(github gitea forgejo tangled)
 
 die() {
   printf '%s\n' "$1" >&2
@@ -167,7 +168,7 @@ check_repository() {
 }
 
 # Checks that a repository URL's host suits its forge: GitHub repositories are
-# on github.com, and Gitea and Forgejo repositories are anywhere else.
+# on github.com, and other forges' repositories are anywhere else.
 check_forge_host() {
   local label=$1 forge=$2 host=${3%%:*}
   if [[ $forge == github && ${host,,} != github.com ]]; then
@@ -458,11 +459,36 @@ write_readme() {
   } >README.md
 }
 
+# Checks a Tangled repository URL. Tangled remotes can name the repository by
+# its DID (owner.example.com@knot.example.com:did:plc:...) or by its owner's
+# handle (https://tangled.org/@owner.example.com/repo), which parse_remote
+# doesn't accept.
+check_tangled_remote() {
+  local url=$1 host path='[A-Za-z0-9._:@/-]+'
+  local url_pattern="^(https?|ssh)://([^@/]*@)?([A-Za-z0-9.-]+)(:[0-9]+)?/$path\$"
+  local scp_pattern="^[A-Za-z0-9._-]+@([A-Za-z0-9.-]+):$path\$"
+  if [[ $url =~ $url_pattern ]]; then
+    host=${BASH_REMATCH[3]}
+  elif [[ $url =~ $scp_pattern ]]; then
+    host=${BASH_REMATCH[1]}
+  else
+    die 'Unsupported repository URL.'
+  fi
+  check_forge_host 'Tangled repository URL' tangled "$host"
+}
+
 # Sets secondary_remote, secondary_repo_path and secondary_web_url from the URL
 # of the project's repository on another forge.
 read_secondary_repository() {
   local forge=$1 label="${forge_names[$1]} repository URL"
   read -r -p "$label: " secondary_remote
+  # Tangled has no configuration that names the repository
+  if [[ $forge == tangled ]]; then
+    check_tangled_remote "$secondary_remote"
+    secondary_repo_path=
+    secondary_web_url=
+    return
+  fi
   parse_remote 'Repository URL' "$secondary_remote"
   check_forge_host "$label" "$forge" "$remote_host"
   secondary_repo_path=$remote_repo_path
@@ -486,7 +512,9 @@ configure_renovate() {
 # Removes a forge's configuration and its flake checks.
 remove_forge() {
   rm -rf ".$1"
-  remove_checks "actions-${forge_checks[$1]}" "renovate-${forge_checks[$1]}"
+  if [[ -v forge_checks[$1] ]]; then
+    remove_checks "actions-${forge_checks[$1]}" "renovate-${forge_checks[$1]}"
+  fi
 }
 
 # Points the origin forge's configuration at the project's repository, and

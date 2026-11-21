@@ -1,0 +1,24 @@
+# https://tangled.org/docs/spindles/workflows/
+
+workflows:
+  vulnerable-nix:
+    when:
+      - event: ["schedule"]
+        schedule:
+          - cron: "0 9 * * 0" # every Sunday at 09:00 UTC
+      - event: ["manual"]
+
+    engine: microvm
+    image: nixos
+
+    substituters:
+      https://nix.trev.zip: "trev:I39N/EsnHkvfmsbx8RUW+ia5dOzojTQNCTzKYij1chU="
+
+    steps:
+      - name: Run flake-checker
+        command: |
+          # the optional GH_TOKEN secret raises GitHub's rate limit for flake inputs
+          if [[ -n ${GH_TOKEN:-} ]]; then
+            export NIX_CONFIG="access-tokens = github.com=${GH_TOKEN}"
+          fi
+          nix develop .#vulnerable --command flake-checker -f

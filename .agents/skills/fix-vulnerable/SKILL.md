@@ -5,7 +5,7 @@ description: Fixes failures reported by the vulnerable workflow, which runs flak
 
 # Fix Vulnerable
 
-The `vulnerable` workflow runs weekly in each forge directory (`.github`, `.gitea`, `.forgejo`) that exists, with a job for each tool. Read the failed job's log to find which tool failed and why, then reproduce it locally in the `vulnerable` dev shell:
+The `vulnerable` workflow runs weekly in each forge directory (`.github`, `.gitea`, `.forgejo`, `.tangled`) that exists, with a job for each tool. Tangled runs each tool as its own workflow (`vulnerable-nix`) and skips zizmor, which only audits Actions workflows. Read the failed job's log to find which tool failed and why, then reproduce it locally in the `vulnerable` dev shell:
 
 ```sh
 nix develop .#vulnerable -c flake-checker -f

@@ -6,6 +6,7 @@ actions:
           - .github/workflows/**
           - .forgejo/workflows/**
           - .gitea/workflows/**
+          - .tangled/workflows/**
 
 nix:
   - changed-files:
