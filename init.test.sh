@@ -265,6 +265,49 @@ test_gitea() (
   zig build test
 )
 
+# Runs the t3.json worktree setup script with a direnv stub that logs its calls.
+test_t3_worktree_setup() (
+  local cmd root=$tmp/t3/root worktree=$tmp/t3/worktree
+  cmd=$(jq -r '.scripts[] | select(.runOnWorktreeCreate) | .command' "$template/t3.json")
+  mkdir -p "$tmp/t3/bin"
+  printf '#!%s\nprintf "%%s\\n" "$*" >>"$PWD/direnv.log"\n' "$BASH" >"$tmp/t3/bin/direnv"
+  chmod +x "$tmp/t3/bin/direnv"
+
+  setup_worktree() {
+    rm -rf "$root" "$worktree"
+    mkdir -p "$root" "$worktree"
+    cp "$template/.envrc.project" "$worktree"
+  }
+  run_setup() {
+    (cd "$worktree" && T3CODE_PROJECT_ROOT=$root PATH=$tmp/t3/bin:$PATH sh -c "$cmd") || fail 't3.json worktree setup failed'
+    assert_eq "$(cat "$worktree/direnv.log")" $'allow\nexec . true' 'direnv calls'
+  }
+
+  # The project root has no .envrc or .env, as after init.sh
+  setup_worktree
+  run_setup
+  assert_eq "$(readlink "$worktree/.envrc")" .envrc.project '.envrc target without a root .envrc'
+  assert_missing "$worktree/.env"
+
+  # The project root's .envrc and .env are copied
+  setup_worktree
+  printf 'use flake\n' >"$root/.envrc"
+  printf 'KEY=value\n' >"$root/.env"
+  run_setup
+  assert_eq "$(cat "$worktree/.envrc")" 'use flake' '.envrc copied from the root'
+  assert_eq "$(cat "$worktree/.env")" KEY=value '.env copied from the root'
+
+  # Existing files in the worktree are kept
+  setup_worktree
+  printf 'use flake\n' >"$root/.envrc"
+  printf 'KEY=value\n' >"$root/.env"
+  printf 'dotenv\n' >"$worktree/.envrc"
+  printf 'KEY=other\n' >"$worktree/.env"
+  run_setup
+  assert_eq "$(cat "$worktree/.envrc")" dotenv 'existing .envrc'
+  assert_eq "$(cat "$worktree/.env")" KEY=other 'existing .env'
+)
+
 test_rollback() (
   local project=$tmp/rollback head
   new_project "$project" git@github.com:octo/rollback.git
@@ -309,7 +352,7 @@ chmod +x "$tmp/bin/nix"
 PATH=$tmp/bin:$PATH
 
 create_upstream
-for test in test_parse_remote test_check_tangled_remote test_slugify test_zig_module test_nix_string test_application test_library test_gitea test_rollback; do
+for test in test_parse_remote test_check_tangled_remote test_slugify test_zig_module test_nix_string test_application test_library test_gitea test_t3_worktree_setup test_rollback; do
   "$test"
   printf 'ok: %s\n' "$test"
 done
