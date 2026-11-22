@@ -564,6 +564,11 @@ configure_agents() {
   if [[ $reply =~ ^[Nn]([Oo])?$ ]]; then
     rm -rf .claude
   fi
+
+  read -r -p 'Are you using T3 Code? [Y/n] ' reply || reply=
+  if [[ $reply =~ ^[Nn]([Oo])?$ ]]; then
+    rm -f t3.json
+  fi
 }
 
 # Formats the project and commits it as the new repository's root commit.
